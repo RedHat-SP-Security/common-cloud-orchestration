@@ -1,0 +1,16 @@
+summary: test-helpers
+description: Library implementing various operator testing related functions that should simplify test implementation.
+contact: Patrik Koncity <pkoncity@redhat.com>
+component: []
+test: ./runtest.sh
+framework: beakerlib
+require:
+ - git
+ - jq
+ - podman
+duration: 5m
+enabled: true
+adjust:
+-   enabled: false
+    when: distro == rhel-4, rhel-5, rhel-6, rhel-7
+    continue: false
