@@ -2,9 +2,7 @@
 ## vim: dict+=/usr/share/beakerlib/dictionary.vim cpt=.,w,b,u,t,i,k
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
-##   runtest.sh of /CoreOS/tang-operator/Sanity
-##   Description: Basic functionality tests of the tang operator
-##   Author: Patrik Koncity <pkoncity@redhat.com>
+##   Description: Basic helper functions for various operator tests
 ##   Author: Sergio Arroutbi <sarroutb@redhat.com>
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -27,48 +25,27 @@
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 ### Global Test Variables
-TO_BUNDLE="15m"
 FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-TEST_NAMESPACE_PATH="${FUNCTION_DIR}/reg_test/all_test_namespace"
-TEST_NAMESPACE_FILE_NAME="daemons_v1alpha1_namespace.yaml"
-TEST_NAMESPACE_FILE="${TEST_NAMESPACE_PATH}/${TEST_NAMESPACE_FILE_NAME}"
-TEST_NAMESPACE=$(grep -i 'name:' "${TEST_NAMESPACE_FILE}" | awk -F ':' '{print $2}' | tr -d ' ')
-TEST_PVSC_PATH="${FUNCTION_DIR}/reg_test/all_test_namespace"
-TEST_PV_FILE_NAME="daemons_v1alpha1_pv.yaml"
-TEST_PV_FILE="${TEST_PVSC_PATH}/${TEST_PV_FILE_NAME}"
-TEST_SC_FILE_NAME="daemons_v1alpha1_storageclass.yaml"
-TEST_SC_FILE="${TEST_PVSC_PATH}/${TEST_SC_FILE_NAME}"
-EXECUTION_MODE=
-TO_POD_START=120 #seconds
-TO_POD_SCALEIN_WAIT=120 #seconds
-TO_LEGACY_POD_RUNNING=120 #seconds
-TO_DAST_POD_COMPLETED=240 #seconds (DAST lasts around 120 seconds)
-TO_POD_STOP=5 #seconds
-TO_POD_TERMINATE=120 #seconds
-TO_POD_CONTROLLER_TERMINATE=180 #seconds (for controller to end must wait longer)
-TO_SERVICE_START=120 #seconds
-TO_SERVICE_STOP=120 #seconds
-TO_EXTERNAL_IP=120 #seconds
-TO_WGET_CONNECTION=10 #seconds
-TO_ALL_POD_CONTROLLER_TERMINATE=120 #seconds
-TO_KEY_ROTATION=1 #seconds
-TO_ACTIVE_KEYS=60 #seconds
-TO_HIDDEN_KEYS=60 #seconds
-TO_SERVICE_UP=180 #seconds
-ADV_PATH="adv"
+TIMEOUT_POD_START=120 #seconds
+TIMEOUT_LEGACY_POD_RUNNING=120 #seconds
+TIMEOUT_POD_STOP=120 #seconds
+TIMEOUT_POD_TERMINATE=120 #seconds
+TIMEOUT_POD_CONTROLLER_TERMINATE=180 #seconds (for controller to end must wait longer)
+TIMEOUT_SERVICE_START=120 #seconds
+TIMEOUT_SERVICE_STOP=120 #seconds
+TIMEOUT_ALL_POD_CONTROLLER_TERMINATE=120 #seconds
+TIMEOUT_SERVICE_UP=180 #seconds
 OC_DEFAULT_CLIENT="kubectl"
-TOP_SECRET_WORDS="top secret"
-[ -n "$TANG_IMAGE" ] || TANG_IMAGE="registry.redhat.io/rhel9/tang"
-
+ATTESTATION_OPERATOR_NAME="attestation-operator"
+ATTESTATION_OPERATOR_NAMESPACE="keylime"
 
 test -z "${VERSION}" && VERSION="latest"
-test -z "${DISABLE_BUNDLE_INSTALL_TESTS}" && DISABLE_BUNDLE_INSTALL_TESTS="0"
-test -z "${DISABLE_BUNDLE_UNINSTALL_TESTS}" && DISABLE_BUNDLE_UNINSTALL_TESTS="0"
-test -z "${IMAGE_VERSION}" && IMAGE_VERSION="quay.io/sec-eng-special/tang-operator-bundle:${VERSION}"
+test -z "${DISABLE_HELM_INSTALL_TESTS}" && DISABLE_HELM_INSTALL_TESTS="0"
+test -z "${DISABLE_HELM_UNINSTALL_TESTS}" && DISABLE_HELM_UNINSTALL_TESTS="0"
 test -n "${DOWNSTREAM_IMAGE_VERSION}" && {
-    test -z "${OPERATOR_NAMESPACE}" && OPERATOR_NAMESPACE="openshift-operators"
+    test -z "${ATTESTATION_OPERATOR_NAMESPACE}" && ATTESTATION_OPERATOR_NAMESPACE="openshift-operators"
 }
-test -z "${OPERATOR_NAMESPACE}" && OPERATOR_NAMESPACE="default"
+test -z "${ATTESTATION_OPERATOR_NAMESPACE}" && ATTESTATION_OPERATOR_NAMESPACE="keylime"
 test -z "${CONTAINER_MGR}" && CONTAINER_MGR="podman"
 
 ### Required setup for script, installing required packages
@@ -97,10 +74,8 @@ echo -e "\nInstall packages required by the script functions when missing."
 rpm -q "${PACKAGES[@]}" || yum -y install "${PACKAGES[@]}"
 
 
-
 ### Functions
-
-dumpVerbose() {
+logVerbose() {
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
     then
         rlLog "${1}"
@@ -124,23 +99,15 @@ dumpInfo() {
     test -n "${DOWNSTREAM_IMAGE_VERSION}" && {
         rlLog "DOWNSTREAM_IMAGE_VERSION:${DOWNSTREAM_IMAGE_VERSION}"
     } || rlLog "IMAGE_VERSION:${IMAGE_VERSION}"
-    rlLog "OPERATOR NAMESPACE:${OPERATOR_NAMESPACE}"
-    rlLog "DISABLE_BUNDLE_INSTALL_TESTS:${DISABLE_BUNDLE_INSTALL_TESTS}"
+    rlLog "ATTESTATION OPERATOR NAMESPACE:${ATTESTATION_OPERATOR_NAMESPACE}"
+    rlLog "DISABLE_HELM_INSTALL_TESTS:${DISABLE_HELM_INSTALL_TESTS}"
     rlLog "OC_CLIENT:${OC_CLIENT}"
-    rlLog "RUN_BUNDLE_PARAMS:${RUN_BUNDLE_PARAMS}"
     rlLog "EXECUTION_MODE:${EXECUTION_MODE}"
     rlLog "ID:$(id)"
     rlLog "WHOAMI:$(whoami)"
-    rlLog "TANG_IMAGE:${TANG_IMAGE}"
     rlLog "vvvvvvvvv IP vvvvvvvvvv"
     ip a | grep 'inet '
     rlLog "^^^^^^^^^ IP ^^^^^^^^^^"
-    #rlLog "vvvvvvvvv IP TABLES vvvvvvvvvv"
-    #sudo iptables -L
-    #rlLog "Flushing iptables"
-    #sudo iptables -F
-    #sudo iptables -L
-    #rlLog "^^^^^^^^^ IP TABLES ^^^^^^^^^^"
 }
 
 minikubeInfo() {
@@ -171,7 +138,7 @@ checkClusterStatus() {
     return $?
 }
 
-checkPodAmount() {
+checkAtLeastPodAmount() {
     local expected=$1
     local iterations=$2
     local namespace=$3
@@ -180,8 +147,8 @@ checkPodAmount() {
     while [ ${counter} -lt ${iterations} ];
     do
         POD_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get pods | grep -v "^NAME" -c)
-        dumpVerbose "POD AMOUNT:${POD_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
-        if [ ${POD_AMOUNT} -eq ${expected} ]; then
+        logVerbose "POD AMOUNT:${POD_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+        if [ ${POD_AMOUNT} -ge ${expected} ]; then
             return 0
         fi
         counter=$((counter+1))
@@ -222,7 +189,7 @@ checkPodState() {
     while [ ${counter} -lt ${iterations} ];
     do
       pod_status=$("${OC_CLIENT}" -n "${namespace}" get pod "${podname}" | grep -v "^NAME" | awk '{print $3}')
-      dumpVerbose "POD STATUS:${pod_status} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+      logVerbose "POD STATUS:${pod_status} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
       if [ "${pod_status}" == "${expected}" ]; then
         return 0
       fi
@@ -241,7 +208,7 @@ checkServiceAmount() {
     while [ ${counter} -lt ${iterations} ];
     do
         SERVICE_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get services | grep -v "^NAME" -c)
-        dumpVerbose "SERVICE AMOUNT:${SERVICE_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+        logVerbose "SERVICE AMOUNT:${SERVICE_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
         if [ ${SERVICE_AMOUNT} -eq ${expected} ]; then
             return 0
         fi
@@ -269,7 +236,7 @@ checkServiceUp() {
             return 0
         fi
         counter=$((counter+1))
-        dumpVerbose "WAITING SERVICE:${http_service} UP, COUNTER:${counter}/${iterations}"
+        logVerbose "WAITING SERVICE:${http_service} UP, COUNTER:${counter}/${iterations}"
         sleep 1
     done
     return 1
@@ -284,7 +251,7 @@ checkActiveKeysAmount() {
     while [ ${counter} -lt ${iterations} ];
     do
         ACTIVE_KEYS_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get tangserver -o json | jq '.items[0].status.activeKeys | length')
-        dumpVerbose "ACTIVE KEYS AMOUNT:${ACTIVE_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+        logVerbose "ACTIVE KEYS AMOUNT:${ACTIVE_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
         if [ ${ACTIVE_KEYS_AMOUNT} -eq ${expected} ];
         then
             return 0
@@ -305,7 +272,7 @@ checkHiddenKeysAmount() {
     while [ ${counter} -lt ${iterations} ];
     do
         HIDDEN_KEYS_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get tangserver -o json | jq '.items[0].status.hiddenKeys | length')
-        dumpVerbose "HIDDEN KEYS AMOUNT:${HIDDEN_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+        logVerbose "HIDDEN KEYS AMOUNT:${HIDDEN_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
         if [ ${HIDDEN_KEYS_AMOUNT} -eq ${expected} ];
         then
             return 0
@@ -317,8 +284,8 @@ checkHiddenKeysAmount() {
     return 1
 }
 
-getPodNameWithPrefix() {
-    local prefix=$1
+getPodNameWithPartialName() {
+    local partial_name=$1
     local namespace=$2
     local iterations=$3
     local tail_position=$4
@@ -328,11 +295,11 @@ getPodNameWithPrefix() {
     while [ ${counter} -lt ${iterations} ];
     do
       local pod_line
-      pod_line=$("${OC_CLIENT}" -n "${namespace}" get pods | grep -v "^NAME" | grep "${prefix}" | tail -${tail_position} | head -1)
-      dumpVerbose "POD LINE:[${pod_line}] POD PREFIX:[${prefix}] COUNTER:[${counter}/${iterations}]"
+      pod_line=$("${OC_CLIENT}" -n "${namespace}" get pods | grep -v "^NAME" | grep "${partial_name}" | tail -${tail_position} | head -1)
+      logVerbose "POD LINE:[${pod_line}] POD NAME:[${partial_name}] COUNTER:[${counter}/${iterations}]"
       if [ "${pod_line}" != "" ]; then
           echo "${pod_line}" | awk '{print $1}'
-          dumpVerbose "FOUND POD name:[$(echo ${pod_line} | awk '{print $1}')] POD PREFIX:[${prefix}] COUNTER:[${counter}/${iterations}]"
+          logVerbose "FOUND POD name:[$(echo ${pod_line} | awk '{print $1}')] POD NAME:[${partial_name}] COUNTER:[${counter}/${iterations}]"
           return 0
       else
           counter=$((counter+1))
@@ -354,9 +321,9 @@ getServiceNameWithPrefix() {
     do
       local service_name
       service_name=$("${OC_CLIENT}" -n "${namespace}" get services | grep -v "^NAME" | grep "${prefix}" | tail -${tail_position} | head -1)
-      dumpVerbose "SERVICE NAME:[${service_name}] COUNTER:[${counter}/${iterations}]"
+      logVerbose "SERVICE NAME:[${service_name}] COUNTER:[${counter}/${iterations}]"
       if [ "${service_name}" != "" ]; then
-          dumpVerbose "FOUND SERVICE name:[$(echo ${service_name} | awk '{print $1}')] POD PREFIX:[${prefix}] COUNTER:[${counter}/${iterations}]"
+          logVerbose "FOUND SERVICE name:[$(echo ${service_name} | awk '{print $1}')] POD PREFIX:[${prefix}] COUNTER:[${counter}/${iterations}]"
           echo "${service_name}" | awk '{print $1}'
           return 0
       else
@@ -372,19 +339,19 @@ getServiceIp() {
     local namespace=$2
     local iterations=$3
     counter=0
-    dumpVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
+    logVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
     if [ ${EXECUTION_MODE} == "CRC" ];
     then
         local crc_service_ip
         crc_service_ip=$(crc ip)
-        dumpVerbose "CRC MODE, SERVICE IP/HOST:[${crc_service_ip}]"
+        logVerbose "CRC MODE, SERVICE IP/HOST:[${crc_service_ip}]"
         echo "${crc_service_ip}"
         return 0
     elif [ ${EXECUTION_MODE} == "MINIKUBE" ];
     then
         local minikube_service_ip
         minikube_service_ip=$(minikube ip)
-        dumpVerbose "MINIKUBE MODE, SERVICE IP/HOST:[${minikube_service_ip}]"
+        logVerbose "MINIKUBE MODE, SERVICE IP/HOST:[${minikube_service_ip}]"
         echo "${minikube_service_ip}"
         return 0
     fi
@@ -392,13 +359,13 @@ getServiceIp() {
     do
         local service_ip
         service_ip=$("${OC_CLIENT}" -n "${namespace}" describe service "${service_name}" | grep -i "LoadBalancer Ingress:" | awk -F ':' '{print $2}' | tr -d ' ')
-        dumpVerbose "SERVICE IP/HOST:[${service_ip}](Namespace:[${namespace}])"
+        logVerbose "SERVICE IP/HOST:[${service_ip}](Namespace:[${namespace}])"
         if [ -n "${service_ip}" ] && [ "${service_ip}" != "<pending>" ];
         then
             echo "${service_ip}"
             return 0
         else
-            dumpVerbose "PENDING OR EMPTY IP/HOST:[${service_ip}], COUNTER[${counter}/${iterations}]"
+            logVerbose "PENDING OR EMPTY IP/HOST:[${service_ip}], COUNTER[${counter}/${iterations}]"
         fi
         counter=$((counter+1))
         sleep 1
@@ -410,7 +377,7 @@ getServicePort() {
     local service_name=$1
     local namespace=$2
     local service_port
-    dumpVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) PORT ..."
+    logVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) PORT ..."
     if [ ${EXECUTION_MODE} == "CLUSTER" ];
     then
         service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" | grep -v ^NAME | awk '{print $5}' | awk -F ':' '{print $1}')
@@ -418,7 +385,7 @@ getServicePort() {
         service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" | grep -v ^NAME | awk '{print $5}' | awk -F ':' '{print $2}' | awk -F '/' '{print $1}')
     fi
     result=$?
-    dumpVerbose "SERVICE PORT:[${service_port}](Namespace:[${namespace}])"
+    logVerbose "SERVICE PORT:[${service_port}](Namespace:[${namespace}])"
     echo "${service_port}"
     return ${result}
 }
@@ -431,12 +398,12 @@ serviceAdv() {
     file=$(mktemp)
     ### wget
     COMMAND="wget ${URL} --timeout=${TO_WGET_CONNECTION} -O ${file} -o /dev/null"
-    dumpVerbose "CONNECTION_COMMAND:[${COMMAND}]"
+    logVerbose "CONNECTION_COMMAND:[${COMMAND}]"
     ${COMMAND}
     wget_res=$?
-    dumpVerbose "WGET RESULT:$(cat ${file})"
+    logVerbose "WGET RESULT:$(cat ${file})"
     JSON_ADV=$(cat "${file}")
-    dumpVerbose "CONNECTION_COMMAND:[${COMMAND}],RESULT:[${wget_res}],JSON_ADV:[${JSON_ADV}])"
+    logVerbose "CONNECTION_COMMAND:[${COMMAND}],RESULT:[${wget_res}],JSON_ADV:[${JSON_ADV}])"
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
         jq . -M -a < "${file}"
     else
@@ -447,274 +414,41 @@ serviceAdv() {
     return $((wget_res+jq_res))
 }
 
-checkKeyRotation() {
-    local ip=$1
-    local port=$2
-    local namespace=$3
-    local file1
-    file1=$(mktemp)
-    local file2
-    file2=$(mktemp)
-    dumpKeyAdv "${ip}" "${port}" "${file1}"
-    rlRun "${FUNCTION_DIR}/reg_test/func_test/key_rotation/rotate_keys.sh ${namespace} ${OC_CLIENT}" 0 "Rotating keys"
-    rlLog "Waiting:${TO_KEY_ROTATION} secs. for keys to rotate"
-    sleep "${TO_KEY_ROTATION}"
-    dumpKeyAdv "${ip}" "${port}" "${file2}"
-    dumpVerbose "Comparing files:${file1} and ${file2}"
-    rlAssertDiffer "${file1}" "${file2}"
-    res=$?
-    rm -f "${file1}" "${file2}"
-    return ${res}
-}
-
-dumpKeyAdv() {
-    local ip=$1
-    local port=$2
-    local file=$3
-    test -z "${file}" && file="-"
-    local url
-    url="http://${ip}:${port}/${ADV_PATH}"
-    local get_command1
-    get_command1="wget ${url} --timeout=${TO_WGET_CONNECTION} -O ${file} -o /dev/null"
-    dumpVerbose "DUMP_KEY_ADV_COMMAND:[${get_command1}]"
-    ${get_command1}
-}
-
-serviceAdvCompare() {
-    local ip=$1
-    local port=$2
-    local ip2=$3
-    local port2=$4
-    local url
-    url="http://${ip}:${port}/${ADV_PATH}"
-    local url2
-    url2="http://${ip2}:${port2}/${ADV_PATH}"
-    local jq_equal=1
-    local file1
-    local file2
-    file1=$(mktemp)
-    file2=$(mktemp)
-    local jq_json_file1
-    local jq_json_file2
-    jq_json_file1=$(mktemp)
-    jq_json_file2=$(mktemp)
-    local command1
-    command1="wget ${url} --timeout=${TO_WGET_CONNECTION} -O ${file1} -o /dev/null"
-    local command2
-    command2="wget ${url2} --timeout=${TO_WGET_CONNECTION} -O ${file2} -o /dev/null"
-    dumpVerbose "CONNECTION_COMMAND:[${command1}]"
-    dumpVerbose "CONNECTION_COMMAND:[${command2}]"
-    ${command1}
-    wget_res1=$?
-    ${command2}
-    wget_res2=$?
-    dumpVerbose "CONNECTION_COMMAND:[${command1}],RESULT:[${wget_res1}],json_adv:[$(cat ${file1})]"
-    dumpVerbose "CONNECTION_COMMAND:[${command2}],RESULT:[${wget_res2}],json_adv:[$(cat ${file2})]"
-    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
-        jq . -M -a < "${file1}" 2>&1 | tee "${jq_json_file1}"
-    else
-        jq . -M -a < "${file1}" > "${jq_json_file1}"
-    fi
-    jq_res1=$?
-    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
-        jq . -M -a < "${file2}" 2>&1 | tee "${jq_json_file2}"
-    else
-        jq . -M -a < "${file2}" > "${jq_json_file2}"
-    fi
-    jq_res2=$?
-    rlAssertDiffer "${jq_json_file1}" "${jq_json_file2}"
-    jq_equal=$?
-    rm "${jq_json_file1}" "${jq_json_file2}"
-    return $((wget_res1+wget_res2+jq_res1+jq_res2+jq_equal))
-}
-
-checkStatusRunningReplicas() {
-    local counter
-    counter=0
-    local expected=$1
-    local namespace=$2
-    local iterations=$3
-    while [ ${counter} -lt ${iterations} ];
-    do
-      local running
-      running=$("${OC_CLIENT}" -n "${namespace}" get tangserver -o json | jq '.items[0].status.running | length')
-      dumpVerbose "Status Running Replicas: Expected:[${expected}], Running:[${running}]"
-      if [ ${expected} -eq ${running} ];
-      then
-          return 0
-      fi
-      counter=$((counter+1))
-      sleep 1
-    done
-    return 1
-}
-
-checkStatusReadyReplicas() {
-    local counter
-    counter=0
-    local expected=$1
-    local namespace=$2
-    local iterations=$3
-    while [ ${counter} -lt ${iterations} ];
-    do
-      local ready
-      ready=$("${OC_CLIENT}" -n "${namespace}" get tangserver -o json | jq '.items[0].status.ready | length')
-      dumpVerbose "Status Ready Replicas: Expected:[${expected}], Ready:[${ready}]"
-      if [ ${expected} -eq ${ready} ];
-      then
-          return 0
-      fi
-      counter=$((counter+1))
-      sleep 1
-    done
-    return 1
-}
-
-uninstallDownstreamVersion() {
-    pushd ${tmpdir}/tang-operator/tools/index_tools
-    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
+helmOperatorInstall() {
+    if [ "${DISABLE_HELM_INSTALL_TESTS}" == "1" ];
     then
-        ./tang_uninstall_catalog.sh || err=1
-    else
-        ./tang_uninstall_catalog.sh 1>/dev/null 2>/dev/null || err=1
-    fi
-    popd || return 1
-    return $?
-}
-
-installDownstreamVersion() {
-    local err=0
-    # Download required tools
-    pushd ${tmpdir}
-    # WARNING: if tang-operator is changed to OpenShift organization, change this
-    git clone https://github.com/latchset/tang-operator
-    pushd tang-operator/tools/index_tools
-    local downstream_version=$(echo ${DOWNSTREAM_IMAGE_VERSION} | awk -F ':' '{print $2}')
-    dumpVerbose "Installing Downstream version: ${DOWNSTREAM_IMAGE_VERSION} DOWNSTREAM_VERSION:[${downstream_version}]"
-    rlLog "Indexing and installing catalog"
-    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
-    then
-        DO_NOT_LOGIN="1" ./tang_index.sh "${DOWNSTREAM_IMAGE_VERSION}" "${downstream_version}" || err=1
-        ./tang_install_catalog.sh || err=1
-    else
-        DO_NOT_LOGIN="1" ./tang_index.sh "${DOWNSTREAM_IMAGE_VERSION}" "${downstream_version}" 1>/dev/null 2>/dev/null || err=1
-        ./tang_install_catalog.sh 1>/dev/null 2>/dev/null || err=1
-    fi
-    popd || return 1
-    popd || return 1
-    return $err
-}
-
-bundleStart() {
-    if [ "${DISABLE_BUNDLE_INSTALL_TESTS}" == "1" ];
-    then
-      rlLog "User asked to not install/uninstall by using DISABLE_BUNDLE_INSTALL_TESTS=1"
+      rlLog "User asked to not install/uninstall by using DISABLE_HELM_INSTALL_TESTS=1"
       return 0
     fi
-    if [ -n "${DOWNSTREAM_IMAGE_VERSION}" ];
-    then
-      installDownstreamVersion
-      return $?
-    fi
-    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
-    then
-      rlRun "operator-sdk --verbose run bundle --timeout ${TO_BUNDLE} ${IMAGE_VERSION} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE}"
-    else
-      rlRun "operator-sdk run bundle --timeout ${TO_BUNDLE} ${IMAGE_VERSION} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null"
-    fi
-    return $?
+    "${OC_CLIENT}" get namespace "${ATTESTATION_OPERATOR_NAMESPACE}" 2>/dev/null || "${OC_CLIENT}" create namespace "${ATTESTATION_OPERATOR_NAMESPACE}"
+    rlRun "helm install ${ATTESTATION_OPERATOR_NAME} oci://quay.io/sec-eng-special/openshift-attestation-operator-helm/keylime --namespace ${ATTESTATION_OPERATOR_NAMESPACE}"
 }
 
-bundleInitialStop() {
-    if [ "${DISABLE_BUNDLE_INSTALL_TESTS}" == "1" ];
+initialHelmClean() {
+    if [ "${DISABLE_HELM_INSTALL_TESTS}" == "1" ];
     then
-      rlLog "User asked to not install/uninstall by using DISABLE_BUNDLE_INSTALL_TESTS=1"
+      rlLog "User asked to not install/uninstall by using DISABLE_HELM_INSTALL_TESTS=1"
       return 0
     fi
-    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
-    then
-        operator-sdk --verbose cleanup tang-operator --namespace ${OPERATOR_NAMESPACE}
-    else
-        operator-sdk cleanup tang-operator --namespace ${OPERATOR_NAMESPACE} 2>/dev/null
-    fi
-    if [ $? -eq 0 ];
-    then
-        checkPodAmount 0 ${TO_ALL_POD_CONTROLLER_TERMINATE} ${OPERATOR_NAMESPACE}
-    fi
+    # This can fail in case no attestation operator is already running. If running, it cleans it
+    helm uninstall ${ATTESTATION_OPERATOR_NAME} --namespace ${ATTESTATION_OPERATOR_NAMESPACE} 2>/dev/null
     return 0
 }
 
 
-bundleStop() {
-    if [ "${DISABLE_BUNDLE_INSTALL_TESTS}" == "1" ];
+cleanHelmDistro() {
+    if [ "${DISABLE_HELM_INSTALL_TESTS}" == "1" ];
     then
-      rlLog "User asked to not install/uninstall by using DISABLE_BUNDLE_INSTALL_TESTS=1"
+      rlLog "User asked to not install/uninstall by using DISABLE_HELM_INSTALL_TESTS=1"
       return 0
     fi
-    if [ "${DISABLE_BUNDLE_UNINSTALL_TESTS}" == "1" ];
+    if [ "${DISABLE_HELM_UNINSTALL_TESTS}" == "1" ];
     then
-      rlLog "User asked to not uninstall by using DISABLE_BUNDLE_UNINSTALL_TESTS=1"
+      rlLog "User asked to not uninstall by using DISABLE_HELM_UNINSTALL_TESTS=1"
       return 0
     fi
-    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
-    then
-        operator-sdk cleanup tang-operator --namespace ${OPERATOR_NAMESPACE}
-    else
-        operator-sdk cleanup tang-operator --namespace ${OPERATOR_NAMESPACE} 2>/dev/null
-    fi
-    if [ $? -eq 0 ];
-    then
-        checkPodAmount 0 ${TO_ALL_POD_CONTROLLER_TERMINATE} ${OPERATOR_NAMESPACE}
-    fi
+    rlRun "helm uninstall ${ATTESTATION_OPERATOR_NAME} --namespace ${ATTESTATION_OPERATOR_NAMESPACE}"
     return 0
-}
-
-getPodCpuRequest() {
-    local pod_name=$1
-    local namespace=$2
-    dumpVerbose "Getting POD:[${pod_name}](Namespace:[${namespace}]) CPU Request ..."
-    local cpu
-    cpu=$("${OC_CLIENT}" -n "${namespace}" describe pod "${pod_name}" | grep -i Requests -A2 | grep 'cpu' | awk -F ":" '{print $2}' | tr -d ' ' | tr -d "[A-Z,a-z]")
-    dumpVerbose "CPU REQUEST COMMAND:["${OC_CLIENT}" -n "${namespace}" describe pod ${pod_name} | grep -i Requests -A2 | grep 'cpu' | awk -F ':' '{print $2}' | tr -d ' ' | tr -d \"[A-Z,a-z]\""
-    dumpVerbose "POD:[${pod_name}](Namespace:[${namespace}]) CPU Request:[${cpu}]"
-    echo "${cpu}"
-}
-
-getPodMemRequest() {
-    local pod_name=$1
-    local namespace=$2
-    dumpVerbose "Getting POD:[${pod_name}](Namespace:[${namespace}]) MEM Request ..."
-    local mem
-    mem=$("${OC_CLIENT}" -n "${namespace}" describe pod "${pod_name}" | grep -i Requests -A2 | grep 'memory' | awk -F ":" '{print $2}' | tr -d ' ')
-    local unit
-    unit="${mem: -1}"
-    local mult
-    mult=1
-    case "${unit}" in
-        K|k)
-            mult=1024
-            ;;
-        M|m)
-            mult=$((1024*1024))
-            ;;
-        G|g)
-            mult=$((1024*1024*1024))
-            ;;
-        T|t)
-            mult=$((1024*1024*1024*1024))
-            ;;
-        *)
-            mult=1
-            ;;
-    esac
-    dumpVerbose "MEM REQUEST COMMAND:["${OC_CLIENT}" -n "${namespace}" describe pod ${pod_name} | grep -i Requests -A2 | grep 'memory' | awk -F ':' '{print $2}' | tr -d ' '"
-    dumpVerbose "POD:[${pod_name}](Namespace:[${namespace}]) MEM Request With Unit:[${mem}] Unit:[${unit}] Mult:[${mult}]"
-    local mem_no_unit
-    mem_no_unit="${mem/${unit}/}"
-    local mult_mem
-    mult_mem=$((mem_no_unit*mult))
-    dumpVerbose "POD:[${pod_name}](Namespace:[${namespace}]) MEM Request:[${mult_mem}] Unit:[${unit}] Mult:[${mult}]"
-    echo "${mult_mem}"
 }
 
 dumpOpenShiftClientStatus() {
@@ -735,20 +469,19 @@ dumpOpenShiftClientStatus() {
     return 0
 }
 
-installScPv() {
-    if [ ${EXECUTION_MODE} == "CLUSTER" ];
-    then
-	for sc in $("${OC_CLIENT}" get storageclasses.storage.k8s.io  | grep "\(${OPERATOR_NAMESPACE}\)" | awk '{print $1}' );
-        do
-            "${OC_CLIENT}" patch storageclass "${sc}" -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
-	done
-	rlLog "After Storage Class deletion:"
-        "${OC_CLIENT}" get storageclasses.storage.k8s.io
-        "${OC_CLIENT}" apply -f "${TEST_SC_FILE}"
-        "${OC_CLIENT}" apply -f "${TEST_PV_FILE}"
-	rlLog "After Storage Class application:"
-        "${OC_CLIENT}" get storageclasses.storage.k8s.io
-    fi
+installHelm() {
+    local tmp_dir=$(mktemp -d)
+    pushd "${tmp_dir}"
+    ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n "$(uname -m)" ;; esac)
+    OS=$(uname | awk '{print tolower($0)}')
+    #download latest helm
+    LATEST_RELEASE_TAG=$(curl -s https://api.github.com/repos/helm/helm/releases/latest | jq -r '.tag_name')
+    RELEASE_URL="https://get.helm.sh/helm-${LATEST_RELEASE_TAG}-${OS}-${ARCH}.tar.gz"
+    TAR_FILE="helm-${LATEST_RELEASE_TAG}-${OS}-${ARCH}.tar.gz"
+    rlRun "curl -LO ${RELEASE_URL}"
+    rlRun "tar -xzf ${TAR_FILE}"
+    rlRun "mv ${OS}-${ARCH}/helm /usr/local/bin/helm"
+    popd || return 1
     return 0
 }
 
@@ -759,42 +492,4 @@ getVersion() {
     else
         echo "${IMAGE_VERSION}"
     fi
-}
-
-analyzeVersion() {
-    dumpVerbose "DETECTING MALWARE ON VERSION:[${1}]"
-    "${CONTAINER_MGR}" pull "${1}"
-    user=$(whoami | tr -d ' ' | awk '{print $1}')
-    local tmpdir=$( mktemp -d )
-    if [ "${user}" == "root" ]; then
-        freshclam
-        dir_mount=$(sh "$FUNCTION_DIR"/scripts/mount_image.sh -v "${1}" -c "${CONTAINER_MGR}")
-    else
-        dir_mount=$("${CONTAINER_MGR}" unshare sh "$FUNCTION_DIR"/scripts/mount_image.sh -v "${1}" -c "${CONTAINER_MGR}")
-    fi
-    rlAssertEquals "Checking image could be mounted appropriately" "$?" "0"
-    analyzed_dir=$(echo "${dir_mount}" | sed -e 's@/merged@@g')
-    dumpVerbose "Analyzing directory:[${analyzed_dir}]"
-    commandVerbose "tree ${analyzed_dir}"
-    prefix=$(echo "${1}" | tr ':' '_' | awk -F "/" '{print $NF}')
-    rlRun "clamscan -o --recursive --infected ${analyzed_dir} --log ${tmpdir}/${prefix}_malware.log" 0 "Checking for malware, logfile:${tmpdir}/${prefix}_malware.log"
-    infected_files=$(grep -i "Infected Files:" "${tmpdir}/${prefix}_malware.log" | awk -F ":" '{print $2}' | tr -d ' ')
-    rlAssertEquals "Checking no infected files" "${infected_files}" "0"
-    if [ "${infected_files}" != "0" ]; then
-        rlLogWarning "${infected_files} Infected Files Detected!"
-        rlLogWarning "Please, review Malware Detection log file: ${tmpdir}/${prefix}_malware.log"
-    fi
-    if [ "${user}" == "root" ]; then
-        sh "$FUNCTION_DIR"/scripts/umount_image.sh -v "${1}" -c "${CONTAINER_MGR}"
-    else
-        "${CONTAINER_MGR}" unshare sh "$FUNCTION_DIR"/scripts/umount_image.sh -v "${1}" -c "${CONTAINER_MGR}"
-    fi
-    rlAssertEquals "Checking image could be umounted appropriately" "$?" "0"
-}
-
-useUpstreamImages(){
-    for yaml_file in `find ${FUNCTION_DIR}/reg_test \( -iname "*.yaml" -o -iname "*.sh" \) -type f -print`
-    do
-        sed -i "s~\"registry.redhat.io/rhel9/tang\"~\"${TANG_IMAGE}\"~g" $yaml_file
-    done
 }
