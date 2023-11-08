@@ -1,30 +1,42 @@
 #!/bin/bash
-## vim: dict+=/usr/share/beakerlib/dictionary.vim cpt=.,w,b,u,t,i,k
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-##
-##   Description: Basic helper functions for various operator tests
-##   Author: Sergio Arroutbi <sarroutb@redhat.com>
-##
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-##
-##   Copyright (c) 2023 Red Hat, Inc.
-##
-##   This program is free software: you can redistribute it and/or
-##   modify it under the terms of the GNU General Public License as
-##   published by the Free Software Foundation, either version 2 of
-##   the License, or (at your option) any later version.
-##
-##   This program is distributed in the hope that it will be
-##   useful, but WITHOUT ANY WARRANTY; without even the implied
-##   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-##   PURPOSE.  See the GNU General Public License for more details.
-##
-##   You should have received a copy of the GNU General Public License
-##   along with this program. If not, see http://www.gnu.org/licenses/.
-##
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# vim: dict+=/usr/share/beakerlib/dictionary.vim cpt=.,w,b,u,t,i,k
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-### Global Test Variables
+#   Description: provides basic function for token manipulation
+#   Authors: Sergio Arroutbi <sarroutb@redhat.com>
+#            Patrik Koncity <pkoncity@redhat.com>
+#
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+#   Copyright (c) 2021 Red Hat, Inc.
+#
+#   This copyrighted material is made available to anyone wishing
+#   to use, modify, copy, or redistribute it subject to the terms
+#   and conditions of the GNU General Public License version 2.
+#
+#   This program is distributed in the hope that it will be
+#   useful, but WITHOUT ANY WARRANTY; without even the implied
+#   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+#   PURPOSE. See the GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public
+#   License along with this program; if not, write to the Free
+#   Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+#   Boston, MA 02110-1301, USA.
+#
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   library-prefix = ocpop
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# Include Beaker environment
+. /usr/share/beakerlib/beakerlib.sh || exit 1
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   Variables
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TIMEOUT_POD_START=120 #seconds
 TIMEOUT_LEGACY_POD_RUNNING=120 #seconds
@@ -36,16 +48,15 @@ TIMEOUT_SERVICE_STOP=120 #seconds
 TIMEOUT_ALL_POD_CONTROLLER_TERMINATE=120 #seconds
 TIMEOUT_SERVICE_UP=180 #seconds
 OC_DEFAULT_CLIENT="kubectl"
-ATTESTATION_OPERATOR_NAME="attestation-operator"
-ATTESTATION_OPERATOR_NAMESPACE="keylime"
+[ -n "$OPERATOR_NAME" ] || OPERATOR_NAME="openshift-operators"
+[ -n "$OPERATOR_NAMESPACE" ] || OPERATOR_NAMESPACE="keylime"
 
 test -z "${VERSION}" && VERSION="latest"
 test -z "${DISABLE_HELM_INSTALL_TESTS}" && DISABLE_HELM_INSTALL_TESTS="0"
 test -z "${DISABLE_HELM_UNINSTALL_TESTS}" && DISABLE_HELM_UNINSTALL_TESTS="0"
 test -n "${DOWNSTREAM_IMAGE_VERSION}" && {
-    test -z "${ATTESTATION_OPERATOR_NAMESPACE}" && ATTESTATION_OPERATOR_NAMESPACE="openshift-operators"
+    test -z "${OPERATOR_NAMESPACE}" && OPERATOR_NAMESPACE="openshift-operators"
 }
-test -z "${ATTESTATION_OPERATOR_NAMESPACE}" && ATTESTATION_OPERATOR_NAMESPACE="keylime"
 test -z "${CONTAINER_MGR}" && CONTAINER_MGR="podman"
 
 ### Required setup for script, installing required packages
@@ -68,38 +79,35 @@ else
         EXECUTION_MODE="CLUSTER"
 fi
 
-### Install required packages for script functions
-PACKAGES=(git podman jq)
-echo -e "\nInstall packages required by the script functions when missing."
-rpm -q "${PACKAGES[@]}" || yum -y install "${PACKAGES[@]}"
-
+export __INTERNAL_ocpopTmpDir
+[ -n "$__INTERNAL_ocpopTmpDir" ] || __INTERNAL_ocpopTmpDir="/var/tmp/ocpopLib"
 
 ### Functions
-logVerbose() {
+ocpopLogVerbose() {
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
     then
         rlLog "${1}"
     fi
 }
 
-commandVerbose() {
+ocpopCommandVerbose() {
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
     then
         $*
     fi
 }
 
-dumpDate() {
+ocpopDumpDate() {
     rlLog "DATE:$(date)"
 }
 
-dumpInfo() {
+ocpopDumpInfo() {
     rlLog "HOSTNAME:$(hostname)"
     rlLog "RELEASE:$(cat /etc/redhat-release)"
     test -n "${DOWNSTREAM_IMAGE_VERSION}" && {
         rlLog "DOWNSTREAM_IMAGE_VERSION:${DOWNSTREAM_IMAGE_VERSION}"
     } || rlLog "IMAGE_VERSION:${IMAGE_VERSION}"
-    rlLog "ATTESTATION OPERATOR NAMESPACE:${ATTESTATION_OPERATOR_NAMESPACE}"
+    rlLog "OPERATOR NAMESPACE:${OPERATOR_NAMESPACE}"
     rlLog "DISABLE_HELM_INSTALL_TESTS:${DISABLE_HELM_INSTALL_TESTS}"
     rlLog "OC_CLIENT:${OC_CLIENT}"
     rlLog "EXECUTION_MODE:${EXECUTION_MODE}"
@@ -110,7 +118,7 @@ dumpInfo() {
     rlLog "^^^^^^^^^ IP ^^^^^^^^^^"
 }
 
-minikubeInfo() {
+ocpopMinikubeInfo() {
     rlLog "MINIKUBE IP:$(minikube ip)"
     rlLog "vvvvvvvvvvvv MINIKUBE STATUS vvvvvvvvvvvv"
     minikube status
@@ -121,7 +129,7 @@ minikubeInfo() {
 }
 
 
-checkClusterStatus() {
+ocpopCheckClusterStatus() {
     if [ "${EXECUTION_MODE}" == "CRC" ];
     then
         rlRun "crc status | grep OpenShift | awk -F ':' '{print $2}' | awk '{print $1}' | grep -i Running" 0 "Checking Code Ready Containers up and running"
@@ -138,7 +146,7 @@ checkClusterStatus() {
     return $?
 }
 
-checkAtLeastPodAmount() {
+ocpopCheckAtLeastPodAmount() {
     local expected=$1
     local iterations=$2
     local namespace=$3
@@ -147,7 +155,7 @@ checkAtLeastPodAmount() {
     while [ ${counter} -lt ${iterations} ];
     do
         POD_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get pods | grep -v "^NAME" -c)
-        logVerbose "POD AMOUNT:${POD_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+        ocpopLogVerbose "POD AMOUNT:${POD_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
         if [ ${POD_AMOUNT} -ge ${expected} ]; then
             return 0
         fi
@@ -157,7 +165,7 @@ checkAtLeastPodAmount() {
     return 1
 }
 
-checkPodKilled() {
+ocpopCheckPodKilled() {
     local pod_name=$1
     local namespace=$2
     local iterations=$3
@@ -179,7 +187,7 @@ checkPodKilled() {
     return 1
 }
 
-checkPodState() {
+ocpopCheckPodState() {
     local expected=$1
     local iterations=$2
     local namespace=$3
@@ -189,7 +197,7 @@ checkPodState() {
     while [ ${counter} -lt ${iterations} ];
     do
       pod_status=$("${OC_CLIENT}" -n "${namespace}" get pod "${podname}" | grep -v "^NAME" | awk '{print $3}')
-      logVerbose "POD STATUS:${pod_status} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+      ocpopLogVerbose "POD STATUS:${pod_status} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
       if [ "${pod_status}" == "${expected}" ]; then
         return 0
       fi
@@ -199,7 +207,7 @@ checkPodState() {
     return 1
 }
 
-checkServiceAmount() {
+ocpopCheckServiceAmount() {
     local expected=$1
     local iterations=$2
     local namespace=$3
@@ -208,7 +216,7 @@ checkServiceAmount() {
     while [ ${counter} -lt ${iterations} ];
     do
         SERVICE_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get services | grep -v "^NAME" -c)
-        logVerbose "SERVICE AMOUNT:${SERVICE_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+        ocpopLogVerbose "SERVICE AMOUNT:${SERVICE_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
         if [ ${SERVICE_AMOUNT} -eq ${expected} ]; then
             return 0
         fi
@@ -218,7 +226,7 @@ checkServiceAmount() {
     return 1
 }
 
-checkServiceUp() {
+ocpopCheckServiceUp() {
     local service_ip_host=$1
     local service_ip_port=$2
     local iterations=$3
@@ -236,13 +244,13 @@ checkServiceUp() {
             return 0
         fi
         counter=$((counter+1))
-        logVerbose "WAITING SERVICE:${http_service} UP, COUNTER:${counter}/${iterations}"
+        ocpopLogVerbose "WAITING SERVICE:${http_service} UP, COUNTER:${counter}/${iterations}"
         sleep 1
     done
     return 1
 }
 
-checkActiveKeysAmount() {
+ocpopCheckActiveKeysAmount() {
     local expected=$1
     local iterations=$2
     local namespace=$3
@@ -251,7 +259,7 @@ checkActiveKeysAmount() {
     while [ ${counter} -lt ${iterations} ];
     do
         ACTIVE_KEYS_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get tangserver -o json | jq '.items[0].status.activeKeys | length')
-        logVerbose "ACTIVE KEYS AMOUNT:${ACTIVE_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+        ocpopLogVerbose "ACTIVE KEYS AMOUNT:${ACTIVE_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
         if [ ${ACTIVE_KEYS_AMOUNT} -eq ${expected} ];
         then
             return 0
@@ -263,7 +271,7 @@ checkActiveKeysAmount() {
     return 1
 }
 
-checkHiddenKeysAmount() {
+ocpopCheckHiddenKeysAmount() {
     local expected=$1
     local iterations=$2
     local namespace=$3
@@ -272,7 +280,7 @@ checkHiddenKeysAmount() {
     while [ ${counter} -lt ${iterations} ];
     do
         HIDDEN_KEYS_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get tangserver -o json | jq '.items[0].status.hiddenKeys | length')
-        logVerbose "HIDDEN KEYS AMOUNT:${HIDDEN_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+        ocpopLogVerbose "HIDDEN KEYS AMOUNT:${HIDDEN_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
         if [ ${HIDDEN_KEYS_AMOUNT} -eq ${expected} ];
         then
             return 0
@@ -284,7 +292,7 @@ checkHiddenKeysAmount() {
     return 1
 }
 
-getPodNameWithPartialName() {
+ocpopGetPodNameWithPartialName() {
     local partial_name=$1
     local namespace=$2
     local iterations=$3
@@ -296,10 +304,10 @@ getPodNameWithPartialName() {
     do
       local pod_line
       pod_line=$("${OC_CLIENT}" -n "${namespace}" get pods | grep -v "^NAME" | grep "${partial_name}" | tail -${tail_position} | head -1)
-      logVerbose "POD LINE:[${pod_line}] POD NAME:[${partial_name}] COUNTER:[${counter}/${iterations}]"
+      ocpopLogVerbose "POD LINE:[${pod_line}] POD NAME:[${partial_name}] COUNTER:[${counter}/${iterations}]"
       if [ "${pod_line}" != "" ]; then
           echo "${pod_line}" | awk '{print $1}'
-          logVerbose "FOUND POD name:[$(echo ${pod_line} | awk '{print $1}')] POD NAME:[${partial_name}] COUNTER:[${counter}/${iterations}]"
+          ocpopLogVerbose "FOUND POD name:[$(echo ${pod_line} | awk '{print $1}')] POD NAME:[${partial_name}] COUNTER:[${counter}/${iterations}]"
           return 0
       else
           counter=$((counter+1))
@@ -309,7 +317,7 @@ getPodNameWithPartialName() {
     return 1
 }
 
-getServiceNameWithPrefix() {
+ocpopGetServiceNameWithPrefix() {
     local prefix=$1
     local namespace=$2
     local iterations=$3
@@ -321,9 +329,9 @@ getServiceNameWithPrefix() {
     do
       local service_name
       service_name=$("${OC_CLIENT}" -n "${namespace}" get services | grep -v "^NAME" | grep "${prefix}" | tail -${tail_position} | head -1)
-      logVerbose "SERVICE NAME:[${service_name}] COUNTER:[${counter}/${iterations}]"
+      ocpopLogVerbose "SERVICE NAME:[${service_name}] COUNTER:[${counter}/${iterations}]"
       if [ "${service_name}" != "" ]; then
-          logVerbose "FOUND SERVICE name:[$(echo ${service_name} | awk '{print $1}')] POD PREFIX:[${prefix}] COUNTER:[${counter}/${iterations}]"
+          ocpopLogVerbose "FOUND SERVICE name:[$(echo ${service_name} | awk '{print $1}')] POD PREFIX:[${prefix}] COUNTER:[${counter}/${iterations}]"
           echo "${service_name}" | awk '{print $1}'
           return 0
       else
@@ -334,24 +342,24 @@ getServiceNameWithPrefix() {
     return 1
 }
 
-getServiceIp() {
+ocpopGetServiceIp() {
     local service_name=$1
     local namespace=$2
     local iterations=$3
     counter=0
-    logVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
+    ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
     if [ ${EXECUTION_MODE} == "CRC" ];
     then
         local crc_service_ip
         crc_service_ip=$(crc ip)
-        logVerbose "CRC MODE, SERVICE IP/HOST:[${crc_service_ip}]"
+        ocpopLogVerbose "CRC MODE, SERVICE IP/HOST:[${crc_service_ip}]"
         echo "${crc_service_ip}"
         return 0
     elif [ ${EXECUTION_MODE} == "MINIKUBE" ];
     then
         local minikube_service_ip
         minikube_service_ip=$(minikube ip)
-        logVerbose "MINIKUBE MODE, SERVICE IP/HOST:[${minikube_service_ip}]"
+        ocpopLogVerbose "MINIKUBE MODE, SERVICE IP/HOST:[${minikube_service_ip}]"
         echo "${minikube_service_ip}"
         return 0
     fi
@@ -359,13 +367,13 @@ getServiceIp() {
     do
         local service_ip
         service_ip=$("${OC_CLIENT}" -n "${namespace}" describe service "${service_name}" | grep -i "LoadBalancer Ingress:" | awk -F ':' '{print $2}' | tr -d ' ')
-        logVerbose "SERVICE IP/HOST:[${service_ip}](Namespace:[${namespace}])"
+        ocpopLogVerbose "SERVICE IP/HOST:[${service_ip}](Namespace:[${namespace}])"
         if [ -n "${service_ip}" ] && [ "${service_ip}" != "<pending>" ];
         then
             echo "${service_ip}"
             return 0
         else
-            logVerbose "PENDING OR EMPTY IP/HOST:[${service_ip}], COUNTER[${counter}/${iterations}]"
+            ocpopLogVerbose "PENDING OR EMPTY IP/HOST:[${service_ip}], COUNTER[${counter}/${iterations}]"
         fi
         counter=$((counter+1))
         sleep 1
@@ -373,11 +381,11 @@ getServiceIp() {
     return 1
 }
 
-getServicePort() {
+ocpopGetServicePort() {
     local service_name=$1
     local namespace=$2
     local service_port
-    logVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) PORT ..."
+    ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) PORT ..."
     if [ ${EXECUTION_MODE} == "CLUSTER" ];
     then
         service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" | grep -v ^NAME | awk '{print $5}' | awk -F ':' '{print $1}')
@@ -385,12 +393,12 @@ getServicePort() {
         service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" | grep -v ^NAME | awk '{print $5}' | awk -F ':' '{print $2}' | awk -F '/' '{print $1}')
     fi
     result=$?
-    logVerbose "SERVICE PORT:[${service_port}](Namespace:[${namespace}])"
+    ocpopLogVerbose "SERVICE PORT:[${service_port}](Namespace:[${namespace}])"
     echo "${service_port}"
     return ${result}
 }
 
-serviceAdv() {
+ocpopServiceAdv() {
     ip=$1
     port=$2
     URL="http://${ip}:${port}/${ADV_PATH}"
@@ -398,12 +406,12 @@ serviceAdv() {
     file=$(mktemp)
     ### wget
     COMMAND="wget ${URL} --timeout=${TO_WGET_CONNECTION} -O ${file} -o /dev/null"
-    logVerbose "CONNECTION_COMMAND:[${COMMAND}]"
+    ocpopLogVerbose "CONNECTION_COMMAND:[${COMMAND}]"
     ${COMMAND}
     wget_res=$?
-    logVerbose "WGET RESULT:$(cat ${file})"
+    ocpopLogVerbose "WGET RESULT:$(cat ${file})"
     JSON_ADV=$(cat "${file}")
-    logVerbose "CONNECTION_COMMAND:[${COMMAND}],RESULT:[${wget_res}],JSON_ADV:[${JSON_ADV}])"
+    ocpopLogVerbose "CONNECTION_COMMAND:[${COMMAND}],RESULT:[${wget_res}],JSON_ADV:[${JSON_ADV}])"
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
         jq . -M -a < "${file}"
     else
@@ -414,29 +422,29 @@ serviceAdv() {
     return $((wget_res+jq_res))
 }
 
-helmOperatorInstall() {
+ocpopHelmOperatorInstall() {
     if [ "${DISABLE_HELM_INSTALL_TESTS}" == "1" ];
     then
       rlLog "User asked to not install/uninstall by using DISABLE_HELM_INSTALL_TESTS=1"
       return 0
     fi
-    "${OC_CLIENT}" get namespace "${ATTESTATION_OPERATOR_NAMESPACE}" 2>/dev/null || "${OC_CLIENT}" create namespace "${ATTESTATION_OPERATOR_NAMESPACE}"
-    rlRun "helm install ${ATTESTATION_OPERATOR_NAME} oci://quay.io/sec-eng-special/openshift-attestation-operator-helm/keylime --namespace ${ATTESTATION_OPERATOR_NAMESPACE}"
+    "${OC_CLIENT}" get namespace "${OPERATOR_NAMESPACE}" 2>/dev/null || "${OC_CLIENT}" create namespace "${OPERATOR_NAMESPACE}"
+    rlRun "helm install ${OPERATOR_NAME} oci://quay.io/sec-eng-special/openshift-attestation-operator-helm/keylime --namespace ${OPERATOR_NAMESPACE}"
 }
 
-initialHelmClean() {
+ocpopInitialHelmClean() {
     if [ "${DISABLE_HELM_INSTALL_TESTS}" == "1" ];
     then
       rlLog "User asked to not install/uninstall by using DISABLE_HELM_INSTALL_TESTS=1"
       return 0
     fi
     # This can fail in case no attestation operator is already running. If running, it cleans it
-    helm uninstall ${ATTESTATION_OPERATOR_NAME} --namespace ${ATTESTATION_OPERATOR_NAMESPACE} 2>/dev/null
+    helm uninstall ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null
     return 0
 }
 
 
-cleanHelmDistro() {
+ocpopCleanHelmDistro() {
     if [ "${DISABLE_HELM_INSTALL_TESTS}" == "1" ];
     then
       rlLog "User asked to not install/uninstall by using DISABLE_HELM_INSTALL_TESTS=1"
@@ -447,11 +455,11 @@ cleanHelmDistro() {
       rlLog "User asked to not uninstall by using DISABLE_HELM_UNINSTALL_TESTS=1"
       return 0
     fi
-    rlRun "helm uninstall ${ATTESTATION_OPERATOR_NAME} --namespace ${ATTESTATION_OPERATOR_NAMESPACE}"
+    rlRun "helm uninstall ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE}"
     return 0
 }
 
-dumpOpenShiftClientStatus() {
+ocpopDumpOpenShiftClientStatus() {
     if [ "${EXECUTION_MODE}" == "MINIKUBE" ];
     then
 	return 0
@@ -469,7 +477,7 @@ dumpOpenShiftClientStatus() {
     return 0
 }
 
-installHelm() {
+ocpopInstallHelm() {
     local tmp_dir=$(mktemp -d)
     pushd "${tmp_dir}"
     ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n "$(uname -m)" ;; esac)
@@ -485,11 +493,39 @@ installHelm() {
     return 0
 }
 
-getVersion() {
+ocpopGetVersion() {
     if [ -n "${DOWNSTREAM_IMAGE_VERSION}" ];
     then
         echo "${DOWNSTREAM_IMAGE_VERSION}"
     else
         echo "${IMAGE_VERSION}"
     fi
+}
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   Verification
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+#   This is a verification callback which will be called by
+#   rlImport after sourcing the library to make sure everything is
+#   all right. It makes sense to perform a basic sanity test and
+#   check that all required packages are installed. The function
+#   should return 0 only when the library is ready to serve.
+
+ocpopLibraryLoaded() {
+
+    ### Install required packages for script functions
+    local PACKAGES=(git podman jq)
+    echo -e "\nInstall packages required by the script functions when missing."
+    rpm -q "${PACKAGES[@]}" || yum -y install "${PACKAGES[@]}"
+
+    if [ -n "$__INTERNAL_ocpopTmpDir" ]; then
+        rlLogDebug "Library common-cloud-orchestration/TestHelpers loaded."
+        return 0
+    else
+        rlLogError "Failed loading library common-cloud-orchestration/TestHelpers."
+        return 1
+    fi
+
 }
