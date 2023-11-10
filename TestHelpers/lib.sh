@@ -31,12 +31,9 @@
 # Include Beaker environment
 . /usr/share/beakerlib/beakerlib.sh || exit 1
 
-
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Variables
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TIMEOUT_POD_START=120 #seconds
 TIMEOUT_LEGACY_POD_RUNNING=120 #seconds
@@ -192,6 +189,7 @@ ocpopCheckPodState() {
     local iterations=$2
     local namespace=$3
     local podname=$4
+    local error_state=$5
     local counter
     counter=0
     while [ ${counter} -lt ${iterations} ];
@@ -200,6 +198,8 @@ ocpopCheckPodState() {
       ocpopLogVerbose "POD STATUS:${pod_status} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
       if [ "${pod_status}" == "${expected}" ]; then
         return 0
+      elif [ "${pod_status}" == "${error_state}" ]; then
+        return 1
       fi
       counter=$((counter+1))
       sleep 1
