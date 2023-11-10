@@ -217,7 +217,7 @@ ocpopCheckPodStateAndContinues() {
     while [ ${counter} -lt ${iterations} ];
     do
       pod_status=$("${OC_CLIENT}" -n "${namespace}" get pod "${podname}" | grep -v "^NAME" | awk '{print $3}')
-      dumpVerbose "POD STATUS:${pod_status} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+      ocpopLogVerbose "POD STATUS:${pod_status} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
       if [ "${pod_status}" != "${expected}" ]; then
         return 1
       fi
