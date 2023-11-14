@@ -45,8 +45,8 @@ TIMEOUT_SERVICE_STOP=120 #seconds
 TIMEOUT_ALL_POD_CONTROLLER_TERMINATE=120 #seconds
 TIMEOUT_SERVICE_UP=180 #seconds
 OC_DEFAULT_CLIENT="kubectl"
-[ -n "$OPERATOR_NAME" ] || OPERATOR_NAME="openshift-operators"
-[ -n "$OPERATOR_NAMESPACE" ] || OPERATOR_NAMESPACE="keylime"
+[ -n "$OPERATOR_NAME" ] || OPERATOR_NAME="unknown-helm-based-operator"
+[ -n "$OPERATOR_NAMESPACE" ] || OPERATOR_NAMESPACE="openshift-operators"
 
 test -z "${VERSION}" && VERSION="latest"
 test -z "${DISABLE_HELM_INSTALL_TESTS}" && DISABLE_HELM_INSTALL_TESTS="0"
