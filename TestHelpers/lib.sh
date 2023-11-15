@@ -47,6 +47,7 @@ TIMEOUT_SERVICE_UP=180 #seconds
 OC_DEFAULT_CLIENT="kubectl"
 [ -n "$OPERATOR_NAME" ] || OPERATOR_NAME="unknown-helm-based-operator"
 [ -n "$OPERATOR_NAMESPACE" ] || OPERATOR_NAMESPACE="openshift-operators"
+[ -n "${HELM_IMAGE_VERSION}" ] || HELM_IMAGE_VERSION="oci://quay.io/sec-eng-special/unknown-helm-image"
 
 test -z "${VERSION}" && VERSION="latest"
 test -z "${DISABLE_HELM_INSTALL_TESTS}" && DISABLE_HELM_INSTALL_TESTS="0"
@@ -449,7 +450,7 @@ ocpopHelmOperatorInstall() {
       return 0
     fi
     "${OC_CLIENT}" get namespace "${OPERATOR_NAMESPACE}" 2>/dev/null || "${OC_CLIENT}" create namespace "${OPERATOR_NAMESPACE}"
-    rlRun "helm install ${OPERATOR_NAME} oci://quay.io/sec-eng-special/openshift-attestation-operator-helm/keylime --namespace ${OPERATOR_NAMESPACE}"
+    rlRun "helm install --namespace ${OPERATOR_NAMESPACE} ${OPERATOR_NAME} ${HELM_IMAGE_VERSION}"
 }
 
 ocpopInitialHelmClean() {
