@@ -34,7 +34,11 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Variables
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# Directory where the lib is located.
 FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Timeout durations in seconds
 TIMEOUT_POD_START=120 #seconds
 TIMEOUT_LEGACY_POD_RUNNING=120 #seconds
 TIMEOUT_POD_STOP=120 #seconds
@@ -44,11 +48,16 @@ TIMEOUT_SERVICE_START=120 #seconds
 TIMEOUT_SERVICE_STOP=120 #seconds
 TIMEOUT_ALL_POD_CONTROLLER_TERMINATE=120 #seconds
 TIMEOUT_SERVICE_UP=180 #seconds
+
+# Default OpenShift client (kubectl)
 OC_DEFAULT_CLIENT="kubectl"
+
+# Operator configuration
 [ -n "$OPERATOR_NAME" ] || OPERATOR_NAME="unknown-helm-based-operator"
 [ -n "$OPERATOR_NAMESPACE" ] || OPERATOR_NAMESPACE="openshift-operators"
 [ -n "${HELM_IMAGE_VERSION}" ] || HELM_IMAGE_VERSION="oci://quay.io/sec-eng-special/unknown-helm-image"
 
+# Additional configurations
 test -z "${VERSION}" && VERSION="latest"
 test -z "${DISABLE_HELM_INSTALL_TESTS}" && DISABLE_HELM_INSTALL_TESTS="0"
 test -z "${DISABLE_HELM_UNINSTALL_TESTS}" && DISABLE_HELM_UNINSTALL_TESTS="0"
@@ -77,16 +86,54 @@ else
         EXECUTION_MODE="CLUSTER"
 fi
 
+# Internal temporary directory
 export __INTERNAL_ocpopTmpDir
 [ -n "$__INTERNAL_ocpopTmpDir" ] || __INTERNAL_ocpopTmpDir="/var/tmp/ocpopLib"
 
-### Functions
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   Functions
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+true <<'=cut'
+=pod
+
+=head2 ocpopLogVerbose
+
+Log a verbose message if the V or VERBOSE variable is set.
+
+    ocpopLogVerbose 
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
 ocpopLogVerbose() {
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
     then
         rlLog "${1}"
     fi
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopCommandVerbose
+
+Execute a command in verbose mode if the V or VERBOSE variable is set.
+
+    ocpopCommandVerbose 
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
 
 ocpopCommandVerbose() {
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
@@ -95,9 +142,43 @@ ocpopCommandVerbose() {
     fi
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopDumpDate
+
+Log the current date.
+
+    ocpopDumpDate
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
 ocpopDumpDate() {
     rlLog "DATE:$(date)"
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopDumpInfo
+
+Log various system information about hostname, version of OS, version of images and etc.
+
+    ocpopDumpInfo
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
 
 ocpopDumpInfo() {
     rlLog "HOSTNAME:$(hostname)"
@@ -116,6 +197,23 @@ ocpopDumpInfo() {
     rlLog "^^^^^^^^^ IP ^^^^^^^^^^"
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopMinikubeInfo
+
+Log Minikube-specific information.
+
+    ocpopMinikubeInfo
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
 ocpopMinikubeInfo() {
     rlLog "MINIKUBE IP:$(minikube ip)"
     rlLog "vvvvvvvvvvvv MINIKUBE STATUS vvvvvvvvvvvv"
@@ -126,6 +224,22 @@ ocpopMinikubeInfo() {
     rlLog "^^^^^^^^^^^^ MINIKUBE SERVICE LIST ^^^^^^^^^^^^"
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckClusterStatus
+
+Check the status of the OpenShift cluster.
+
+    ocpopCheckClusterStatus
+
+=over
+
+=back
+
+Returns 0 if the cluster is up and running otherwise non-exit code.
+
+=cut
 
 ocpopCheckClusterStatus() {
     if [ "${EXECUTION_MODE}" == "CRC" ];
@@ -143,6 +257,35 @@ ocpopCheckClusterStatus() {
     fi
     return $?
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckAtLeastPodAmount
+
+Check if the number of pods in a namespace is at least the expected amount.
+
+    ocpopCheckAtLeastPodAmount expected iterations namespace
+
+=over
+
+=item
+
+    expected - Expected pod amount.
+
+=item
+
+    iterations - Number of iterations to checking state.
+
+=item
+
+    namespace - Namespace where is pod.
+
+=back
+
+Returns 0 when the check was successful, 1 otherwise.
+
+=cut
 
 ocpopCheckAtLeastPodAmount() {
     local expected=$1
@@ -162,6 +305,35 @@ ocpopCheckAtLeastPodAmount() {
     done
     return 1
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckPodKilled
+
+Checks if a pod is killed.
+
+    ocpopCheckPodKilled pod_name namespace iterations
+
+=over
+
+=item
+
+    pod_name - Name of pod.
+
+=item
+
+    namespace - Namespace where is pod.
+
+=item
+
+    iterations - Number of iterations to checking state.
+
+=back
+
+Returns 0 when  is verifyied successful termination of pod, 1 otherwise.
+
+=cut
 
 ocpopCheckPodKilled() {
     local pod_name=$1
@@ -184,6 +356,43 @@ ocpopCheckPodKilled() {
     done
     return 1
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckPodState
+
+Checks if a pod is in the expected state.
+
+    ocpopCheckPodState expected iterations namespace podname error_state
+
+=over
+
+=item
+
+    expected - Expected pod state.
+
+=item
+
+    iterations - Number of iterations to checking state.
+
+=item
+
+    namespace - Namespace where is pod.
+
+=item
+
+    podname - Name of pod.
+
+=item
+
+    error_state - Error state of pod.
+
+=back
+
+Returns 0 when check in expected state, 1 otherwise.
+
+=cut
 
 ocpopCheckPodState() {
     local expected=$1
@@ -208,6 +417,39 @@ ocpopCheckPodState() {
     return 1
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckPodState
+
+Checks if a pod is in the expected state and continues to be in that state.
+
+    ocpopCheckPodState expected iterations namespace podname
+
+=over
+
+=item
+
+    expected - Expected pod state.
+
+=item
+
+    iterations - Number of iterations to checking state.
+
+=item
+
+    namespace - Namespace where is pod.
+
+=item
+
+    podname - Name of pod.
+
+=back
+
+Returns 0 when check in expected state, 1 otherwise.
+
+=cut
+
 ocpopCheckPodStateAndContinues() {
     local expected=$1
     local iterations=$2
@@ -228,6 +470,36 @@ ocpopCheckPodStateAndContinues() {
     return 0
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckServiceAmount
+
+Checks if the number of services in a namespace is equal to the expected amount.
+
+    ocpopCheckServiceAmount expected iterations namespace
+
+=over
+
+=item
+
+    expected - Expected service amount.
+
+=item
+
+    iterations - Number of iterations for checking service amount.
+
+=item
+
+    namespace - Namespace where is pod.
+
+=back
+
+Returns 0 when check is successful, 1 otherwise.
+
+=cut
+
+
 ocpopCheckServiceAmount() {
     local expected=$1
     local iterations=$2
@@ -246,6 +518,35 @@ ocpopCheckServiceAmount() {
     done
     return 1
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckServiceUp
+
+Checks if a service is up.
+
+    ocpopCheckServiceUp service_ip_host service_ip_port iterations
+
+=over
+
+=item
+
+    service_ip_host - Service IP host.
+
+=item
+
+    service_ip_port - Service IP port.
+
+=item
+
+    iterations - Number of iterations in seconds for checking if service is up.
+
+=back
+
+Returns 0 when service is up, 1 otherwise.
+
+=cut
 
 ocpopCheckServiceUp() {
     local service_ip_host=$1
@@ -271,6 +572,35 @@ ocpopCheckServiceUp() {
     return 1
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckActiveKeysAmount
+
+Checks if the number of active keys in a namespace is equal to the expected amount.
+
+    ocpopCheckActiveKeysAmount expected iterations namespace
+
+=over
+
+=item
+
+    expected - Expected active keys amount.
+
+=item
+
+    iterations - Number of iterations in seconds for check active keys.
+
+=item
+
+    namespace - Namespace where are Pods.
+
+=back
+
+Returns 0 when check is successful, 1 otherwise.
+
+=cut
+
 ocpopCheckActiveKeysAmount() {
     local expected=$1
     local iterations=$2
@@ -292,6 +622,35 @@ ocpopCheckActiveKeysAmount() {
     return 1
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckHiddenKeysAmount
+
+Checks if the number of hidden keys in a namespace is equal to the expected amount.
+
+    ocpopCheckHiddenKeysAmount expected iterations namespace
+
+=over
+
+=item
+
+    expected - Expected hidden keys amount.
+
+=item
+
+    iterations - Number of iterations in seconds for check hidden keys.
+
+=item
+
+    namespace - Namespace where are Pods.
+
+=back
+
+Returns 0 when check is successful, 1 otherwise.
+
+=cut
+
 ocpopCheckHiddenKeysAmount() {
     local expected=$1
     local iterations=$2
@@ -312,6 +671,35 @@ ocpopCheckHiddenKeysAmount() {
     rlLog "Hidden Keys Amount not as expected: Hidden Keys:${HIDDEN_KEYS_AMOUNT}, Expected:[${expected}]"
     return 1
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopGetPodNameWithPartialName
+
+Gets the full pod name with a partial name.
+
+    ocpopGetPodNameWithPartialName partial_name namespace iterations
+
+=over
+
+=item
+
+    partial_name - Partial Name of pod.
+
+=item
+
+    namespace - Namespace where are Pods.
+
+=item
+
+    iterations - Number of iterations in seconds for get pod.
+
+=back
+
+Returns 0 when the get pod was successful, 1 otherwise.
+
+=cut
 
 ocpopGetPodNameWithPartialName() {
     local partial_name=$1
@@ -338,6 +726,36 @@ ocpopGetPodNameWithPartialName() {
     return 1
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopGetServiceNameWithPrefix
+
+Gets the full service name with a prefix.
+
+    ocpopGetServiceNameWithPrefix partial_name namespace iterations tail_position
+
+=over
+
+=item
+
+    partial_name - Partial Name of pod.
+
+=item
+
+    namespace - Namespace where are services.
+
+=item
+
+    iterations - Number of iterations in seconds for get service.
+
+=back
+
+Returns 0 when get service was successful, 1 otherwise.
+
+=cut
+
+
 ocpopGetServiceNameWithPrefix() {
     local prefix=$1
     local namespace=$2
@@ -362,6 +780,35 @@ ocpopGetServiceNameWithPrefix() {
     done
     return 1
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopGetServiceIp
+
+ Gets the IP address/host of a service.
+
+    ocpopGetServiceIp service_name namespace iterations
+
+=over
+
+=item
+
+    service_name - Name of service.
+
+=item
+
+    namespace - Namespace where are services.
+
+=item
+
+    iterations - Number of iterations in seconds for get service IP.
+
+=back
+
+Returns 0 when getting service ip was successful, 1 otherwise.
+
+=cut
 
 ocpopGetServiceIp() {
     local service_name=$1
@@ -402,6 +849,33 @@ ocpopGetServiceIp() {
     return 1
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopGetServicePort
+
+Gets the port of a service.
+
+
+    ocpopGetServicePort service_name namespace
+
+=over
+
+=item
+
+    service_name - Name of service.
+
+=item
+
+    namespace - Namespace where are services.
+
+=back
+
+Returns 0 when getting service port was successful, 1 otherwise.
+
+
+=cut
+
 ocpopGetServicePort() {
     local service_name=$1
     local namespace=$2
@@ -418,6 +892,31 @@ ocpopGetServicePort() {
     echo "${service_port}"
     return ${result}
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopServiceAdv
+
+Performs a service advertisement.
+
+    ocpopServiceAdv ip port
+
+=over
+
+=item
+
+    ip - IP address of service.
+
+=item
+
+    port - Port of service.
+
+=back
+
+Returns 0.
+
+=cut
 
 ocpopServiceAdv() {
     ip=$1
@@ -443,6 +942,23 @@ ocpopServiceAdv() {
     return $((wget_res+jq_res))
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopHelmOperatorInstall
+
+Installs a Helm operator.
+
+    ocpopHelmOperatorInstall
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
 ocpopHelmOperatorInstall() {
     if [ "${DISABLE_HELM_INSTALL_TESTS}" == "1" ];
     then
@@ -452,6 +968,23 @@ ocpopHelmOperatorInstall() {
     "${OC_CLIENT}" get namespace "${OPERATOR_NAMESPACE}" 2>/dev/null || "${OC_CLIENT}" create namespace "${OPERATOR_NAMESPACE}"
     rlRun "helm install --namespace ${OPERATOR_NAMESPACE} ${OPERATOR_NAME} ${HELM_IMAGE_VERSION}"
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopInitialHelmClean
+
+Cleans up Helm resources during initial setup.
+
+    ocpopInitialHelmClean
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
 
 ocpopInitialHelmClean() {
     if [ "${DISABLE_HELM_INSTALL_TESTS}" == "1" ];
@@ -464,6 +997,22 @@ ocpopInitialHelmClean() {
     return 0
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopCleanHelmDistro
+
+ Uninstalls Helm resources if its specified.
+
+    ocpopCleanHelmDistro
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
 
 ocpopCleanHelmDistro() {
     if [ "${DISABLE_HELM_INSTALL_TESTS}" == "1" ];
@@ -479,6 +1028,23 @@ ocpopCleanHelmDistro() {
     rlRun "helm uninstall ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE}"
     return 0
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopDumpOpenShiftClientStatus
+
+Dumps OpenShift client status.
+
+    ocpopDumpOpenShiftClientStatus
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
 
 ocpopDumpOpenShiftClientStatus() {
     if [ "${EXECUTION_MODE}" == "MINIKUBE" ];
@@ -498,6 +1064,23 @@ ocpopDumpOpenShiftClientStatus() {
     return 0
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopInstallHelm
+
+Installs Helm.
+
+    ocpopInstallHelm
+
+=over
+
+=back
+
+Returns 0 when the start was successful, 1 otherwise.
+
+=cut
+
 ocpopInstallHelm() {
     local tmp_dir=$(mktemp -d)
     pushd "${tmp_dir}"
@@ -514,6 +1097,23 @@ ocpopInstallHelm() {
     return 0
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopGetVersion
+
+Gets the version of the image.
+
+    ocpopGetVersion
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
 ocpopGetVersion() {
     if [ -n "${DOWNSTREAM_IMAGE_VERSION}" ];
     then
@@ -522,7 +1122,6 @@ ocpopGetVersion() {
         echo "${IMAGE_VERSION}"
     fi
 }
-
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Verification
