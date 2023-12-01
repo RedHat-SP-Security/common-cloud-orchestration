@@ -309,6 +309,54 @@ ocpopCheckAtLeastPodAmount() {
 true <<'=cut'
 =pod
 
+=head2 ocpopCheckPodAmount
+
+Check if the number of pods in a namespace is the expected amount.
+
+    ocpopCheckPodAmount expected iterations namespace
+
+=over
+
+=item
+
+    expected - Expected pod amount.
+
+=item
+
+    iterations - Number of iterations to check state before failing.
+
+=item
+
+    namespace - Namespace where pod runs.
+
+=back
+
+Returns 0 when the check was successful, 1 otherwise.
+
+=cut
+
+ocpopCheckPodAmount() {
+    local expected=$1
+    local iterations=$2
+    local namespace=$3
+    local counter
+    counter=0
+    while [ ${counter} -lt ${iterations} ];
+    do
+        POD_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get pods | grep -v "^NAME" -c)
+        ocpopLogVerbose "POD AMOUNT:${POD_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
+        if [ ${POD_AMOUNT} -eq ${expected} ]; then
+            return 0
+        fi
+        counter=$((counter+1))
+        sleep 1
+    done
+    return 1
+}
+
+true <<'=cut'
+=pod
+
 =head2 ocpopCheckPodKilled
 
 Checks if a pod is killed.
