@@ -468,11 +468,11 @@ ocpopCheckPodState() {
 true <<'=cut'
 =pod
 
-=head2 ocpopCheckPodState
+=head2 ocpopCheckPodStateAndContinues
 
 Checks if a pod is in the expected state and continues to be in that state.
 
-    ocpopCheckPodState expected iterations namespace podname
+    ocpopCheckPodStateAndContinues expected iterations namespace podname
 
 =over
 
@@ -482,11 +482,11 @@ Checks if a pod is in the expected state and continues to be in that state.
 
 =item
 
-    iterations - Number of iterations to checking state.
+    iterations - Number of iterations to check pod state without changes.
 
 =item
 
-    namespace - Namespace where is pod.
+    namespace - Namespace where pod runs.
 
 =item
 
