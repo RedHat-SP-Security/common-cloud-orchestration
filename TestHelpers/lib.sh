@@ -101,7 +101,7 @@ true <<'=cut'
 
 Log a verbose message if the V or VERBOSE variable is set.
 
-    ocpopLogVerbose 
+    ocpopLogVerbose
 
 =over
 
@@ -125,7 +125,7 @@ true <<'=cut'
 
 Execute a command in verbose mode if the V or VERBOSE variable is set.
 
-    ocpopCommandVerbose 
+    ocpopCommandVerbose
 
 =over
 
