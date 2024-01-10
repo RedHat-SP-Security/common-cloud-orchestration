@@ -45,6 +45,11 @@ TO_WGET_CONNECTION=10 #seconds
 export TO_WGET_CONNECTION
 ADV_PATH="adv"
 
+#Set up in tests
+TO_POD_START=120 #seconds
+TO_POD_STOP=5 #seconds
+TO_SERVICE_START=120 #seconds
+TO_SERVICE_STOP=120 #seconds
 
 # Default OpenShift client (kubectl)
 OC_DEFAULT_CLIENT="kubectl"
