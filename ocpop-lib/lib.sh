@@ -2,13 +2,13 @@
 # vim: dict+=/usr/share/beakerlib/dictionary.vim cpt=.,w,b,u,t,i,k
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-#   Description: provides basic function for token manipulation
+#   Description: Common cloud orchestration library for operator test suites
 #   Authors: Sergio Arroutbi <sarroutb@redhat.com>
 #            Patrik Koncity <pkoncity@redhat.com>
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-#   Copyright (c) 2021 Red Hat, Inc.
+#   Copyright (c) 2024 Red Hat, Inc.
 #
 #   This copyrighted material is made available to anyone wishing
 #   to use, modify, copy, or redistribute it subject to the terms
@@ -36,25 +36,21 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Directory where the lib is located.
-FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ocpopLibDir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export ocpopLibDir
 
 # Timeout durations in seconds
-TIMEOUT_POD_START=120 #seconds
-TIMEOUT_LEGACY_POD_RUNNING=120 #seconds
-TIMEOUT_POD_STOP=120 #seconds
-TIMEOUT_POD_TERMINATE=120 #seconds
-TIMEOUT_POD_CONTROLLER_TERMINATE=180 #seconds (for controller to end must wait longer)
-TIMEOUT_SERVICE_START=120 #seconds
-TIMEOUT_SERVICE_STOP=120 #seconds
-TIMEOUT_ALL_POD_CONTROLLER_TERMINATE=120 #seconds
-TIMEOUT_SERVICE_UP=180 #seconds
+EXECUTION_MODE=
+TO_WGET_CONNECTION=10 #seconds
+export TO_WGET_CONNECTION
+ADV_PATH="adv"
+
 
 # Default OpenShift client (kubectl)
 OC_DEFAULT_CLIENT="kubectl"
 
 # Operator configuration
 [ -n "$OPERATOR_NAME" ] || OPERATOR_NAME="unknown-helm-based-operator"
-[ -n "$OPERATOR_NAMESPACE" ] || OPERATOR_NAMESPACE="openshift-operators"
 [ -n "${HELM_IMAGE_VERSION}" ] || HELM_IMAGE_VERSION="oci://quay.io/sec-eng-special/unknown-helm-image"
 
 # Additional configurations
@@ -64,9 +60,9 @@ test -z "${DISABLE_HELM_UNINSTALL_TESTS}" && DISABLE_HELM_UNINSTALL_TESTS="0"
 test -n "${DOWNSTREAM_IMAGE_VERSION}" && {
     test -z "${OPERATOR_NAMESPACE}" && OPERATOR_NAMESPACE="openshift-operators"
 }
-test -z "${CONTAINER_MGR}" && CONTAINER_MGR="podman"
+[ -n "$OPERATOR_NAMESPACE" ] || OPERATOR_NAMESPACE="default"
 
-### Required setup for script, installing required packages
+# Required setup for script, installing required packages
 if [ -z "${TEST_OC_CLIENT}" ];
 then
     OC_CLIENT="${OC_DEFAULT_CLIENT}"
@@ -74,6 +70,7 @@ else
     OC_CLIENT="${TEST_OC_CLIENT}"
 fi
 
+# Test can runs on different types of clusters.
 if [ -z "${TEST_EXTERNAL_CLUSTER_MODE}" ];
 then
     if [ -n "${TEST_CRC_MODE}" ];
@@ -187,8 +184,12 @@ ocpopDumpInfo() {
         rlLog "DOWNSTREAM_IMAGE_VERSION:${DOWNSTREAM_IMAGE_VERSION}"
     } || rlLog "IMAGE_VERSION:${IMAGE_VERSION}"
     rlLog "OPERATOR NAMESPACE:${OPERATOR_NAMESPACE}"
+    #TANG LIB ADD
+    rlLog "DISABLE_BUNDLE_INSTALL_TESTS:${DISABLE_BUNDLE_INSTALL_TESTS}"
     rlLog "DISABLE_HELM_INSTALL_TESTS:${DISABLE_HELM_INSTALL_TESTS}"
     rlLog "OC_CLIENT:${OC_CLIENT}"
+    #TANG LIB ADD
+    rlLog "RUN_BUNDLE_PARAMS:${RUN_BUNDLE_PARAMS}"
     rlLog "EXECUTION_MODE:${EXECUTION_MODE}"
     rlLog "ID:$(id)"
     rlLog "WHOAMI:$(whoami)"
@@ -623,106 +624,6 @@ ocpopCheckServiceUp() {
 true <<'=cut'
 =pod
 
-=head2 ocpopCheckActiveKeysAmount
-
-Checks if the number of active keys in a namespace is equal to the expected amount.
-
-    ocpopCheckActiveKeysAmount expected iterations namespace
-
-=over
-
-=item
-
-    expected - Expected active keys amount.
-
-=item
-
-    iterations - Number of iterations in seconds for check active keys.
-
-=item
-
-    namespace - Namespace where are Pods.
-
-=back
-
-Returns 0 when check is successful, 1 otherwise.
-
-=cut
-
-ocpopCheckActiveKeysAmount() {
-    local expected=$1
-    local iterations=$2
-    local namespace=$3
-    local counter
-    counter=0
-    while [ ${counter} -lt ${iterations} ];
-    do
-        ACTIVE_KEYS_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get tangserver -o json | jq '.items[0].status.activeKeys | length')
-        ocpopLogVerbose "ACTIVE KEYS AMOUNT:${ACTIVE_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
-        if [ ${ACTIVE_KEYS_AMOUNT} -eq ${expected} ];
-        then
-            return 0
-        fi
-        counter=$((counter+1))
-        sleep 1
-    done
-    rlLog "Active Keys Amount not as expected: Active Keys:${ACTIVE_KEYS_AMOUNT}, Expected:[${expected}]"
-    return 1
-}
-
-true <<'=cut'
-=pod
-
-=head2 ocpopCheckHiddenKeysAmount
-
-Checks if the number of hidden keys in a namespace is equal to the expected amount.
-
-    ocpopCheckHiddenKeysAmount expected iterations namespace
-
-=over
-
-=item
-
-    expected - Expected hidden keys amount.
-
-=item
-
-    iterations - Number of iterations in seconds for check hidden keys.
-
-=item
-
-    namespace - Namespace where are Pods.
-
-=back
-
-Returns 0 when check is successful, 1 otherwise.
-
-=cut
-
-ocpopCheckHiddenKeysAmount() {
-    local expected=$1
-    local iterations=$2
-    local namespace=$3
-    local counter
-    counter=0
-    while [ ${counter} -lt ${iterations} ];
-    do
-        HIDDEN_KEYS_AMOUNT=$("${OC_CLIENT}" -n "${namespace}" get tangserver -o json | jq '.items[0].status.hiddenKeys | length')
-        ocpopLogVerbose "HIDDEN KEYS AMOUNT:${HIDDEN_KEYS_AMOUNT} EXPECTED:${expected} COUNTER:${counter}/${iterations}"
-        if [ ${HIDDEN_KEYS_AMOUNT} -eq ${expected} ];
-        then
-            return 0
-        fi
-        counter=$((counter+1))
-        sleep 1
-    done
-    rlLog "Hidden Keys Amount not as expected: Hidden Keys:${HIDDEN_KEYS_AMOUNT}, Expected:[${expected}]"
-    return 1
-}
-
-true <<'=cut'
-=pod
-
 =head2 ocpopGetPodNameWithPartialName
 
 Gets the full pod name with a partial name.
@@ -993,6 +894,293 @@ ocpopServiceAdv() {
 true <<'=cut'
 =pod
 
+=head2 ocpopServiceAdvCompare
+
+Comparing a service advertisement.
+
+    ocpopServiceAdvCompare ip port ip2 port2
+
+=over
+
+=item
+
+    ip - IP address of service.
+
+=item
+
+    port - Port of service.
+
+=item
+
+    ip - IP address of service.
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopServiceAdvCompare() {
+    local ip=$1
+    local port=$2
+    local ip2=$3
+    local port2=$4
+    local url
+    url="http://${ip}:${port}/${ADV_PATH}"
+    local url2
+    url2="http://${ip2}:${port2}/${ADV_PATH}"
+    local jq_equal=1
+    local file1
+    local file2
+    file1=$(mktemp)
+    file2=$(mktemp)
+    local jq_json_file1
+    local jq_json_file2
+    jq_json_file1=$(mktemp)
+    jq_json_file2=$(mktemp)
+    local command1
+    command1="wget ${url} --timeout=${TO_WGET_CONNECTION} -O ${file1} -o /dev/null"
+    local command2
+    command2="wget ${url2} --timeout=${TO_WGET_CONNECTION} -O ${file2} -o /dev/null"
+    ocpopLogVerbose "CONNECTION_COMMAND:[${command1}]"
+    ocpopLogVerbose "CONNECTION_COMMAND:[${command2}]"
+    ${command1}
+    wget_res1=$?
+    ${command2}
+    wget_res2=$?
+    ocpopLogVerbose "CONNECTION_COMMAND:[${command1}],RESULT:[${wget_res1}],json_adv:[$(cat ${file1})]"
+    ocpopLogVerbose "CONNECTION_COMMAND:[${command2}],RESULT:[${wget_res2}],json_adv:[$(cat ${file2})]"
+    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
+        jq . -M -a < "${file1}" 2>&1 | tee "${jq_json_file1}"
+    else
+        jq . -M -a < "${file1}" > "${jq_json_file1}"
+    fi
+    jq_res1=$?
+    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
+        jq . -M -a < "${file2}" 2>&1 | tee "${jq_json_file2}"
+    else
+        jq . -M -a < "${file2}" > "${jq_json_file2}"
+    fi
+    jq_res2=$?
+    rlAssertDiffer "${jq_json_file1}" "${jq_json_file2}"
+    jq_equal=$?
+    rm "${jq_json_file1}" "${jq_json_file2}"
+    return $((wget_res1+wget_res2+jq_res1+jq_res2+jq_equal))
+}
+
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckStatusRunningReplicas
+
+Checking status of running pod replicas.
+
+    ocpopCheckStatusRunningReplicas expected namespace iterations pod_name
+
+=over
+
+=item
+
+    expected - Expected state of pod.
+
+=item
+
+    namespace - Namespace where are services.
+
+=item
+
+    Iterations - Number of provided iterations.
+
+=item
+
+    pod_name - Name of pod.
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopCheckStatusRunningReplicas() {
+    local counter
+    counter=0
+    local expected=$1
+    local namespace=$2
+    local iterations=$3
+    local pod_name=$4
+    while [ ${counter} -lt ${iterations} ];
+    do
+      local running
+      #generalize tangserver
+      running=$("${OC_CLIENT}" -n "${namespace}" get "${pod_name}" -o json | jq '.items[0].status.running | length')
+      ocpopLogVerbose "Status Running Replicas: Expected:[${expected}], Running:[${running}]"
+      if [ ${expected} -eq ${running} ];
+      then
+          return 0
+      fi
+      counter=$((counter+1))
+      sleep 1
+    done
+    return 1
+}
+
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckStatusReadyReplicas
+
+Checking status of  status ready pod replicas.
+
+    ocpopCheckStatusReadyReplicas expected namespace iterations pod_name
+
+=over
+
+=item
+
+    expected - Expected state of pod.
+
+=item
+
+    namespace - Namespace where are services.
+
+=item
+
+    Iterations - Number of provided iterations.
+
+=item
+
+    pod_name - Name of pod.
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopCheckStatusReadyReplicas() {
+    local counter
+    counter=0
+    local expected=$1
+    local namespace=$2
+    local iterations=$3
+    local pod_name=$4
+    while [ ${counter} -lt ${iterations} ];
+    do
+      local ready
+      #generalize tangserver
+      ready=$("${OC_CLIENT}" -n "${namespace}" get "${pod_name}" -o json | jq '.items[0].status.ready | length')
+      ocpopLogVerbose "Status Ready Replicas: Expected:[${expected}], Ready:[${ready}]"
+      if [ ${expected} -eq ${ready} ];
+      then
+          return 0
+      fi
+      counter=$((counter+1))
+      sleep 1
+    done
+    return 1
+}
+
+true <<'=cut'
+=pod
+
+=head2 ocpopGetPodCpuRequest
+
+Checking cpu status of required pod.
+
+    ocpopGetPodCpuRequest pod_name namespace
+
+=over
+
+=item
+
+    pod_name - Expected state of pod.
+
+=item
+
+    namespace - Namespace where are services.
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopGetPodCpuRequest() {
+    local pod_name=$1
+    local namespace=$2
+    ocpopLogVerbose "Getting POD:[${pod_name}](Namespace:[${namespace}]) CPU Request ..."
+    local cpu
+    cpu=$("${OC_CLIENT}" -n "${namespace}" describe pod "${pod_name}" | grep -i Requests -A2 | grep 'cpu' | awk -F ":" '{print $2}' | tr -d ' ' | tr -d "[A-Z,a-z]")
+    ocpopLogVerbose "CPU REQUEST COMMAND:["${OC_CLIENT}" -n "${namespace}" describe pod ${pod_name} | grep -i Requests -A2 | grep 'cpu' | awk -F ':' '{print $2}' | tr -d ' ' | tr -d \"[A-Z,a-z]\""
+    ocpopLogVerbose "POD:[${pod_name}](Namespace:[${namespace}]) CPU Request:[${cpu}]"
+    echo "${cpu}"
+}
+
+true <<'=cut'
+=pod
+
+=head2 ocpopGetPodMemRequest
+
+Checking memory status of required pod.
+
+    ocpopGetPodMemRequest pod_name namespace
+
+=over
+
+=item
+
+    pod_name - Name of pod.
+
+=item
+
+    namespace - Namespace where are services.
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopGetPodMemRequest() {
+    local pod_name=$1
+    local namespace=$2
+    ocpopLogVerbose "Getting POD:[${pod_name}](Namespace:[${namespace}]) MEM Request ..."
+    local mem
+    mem=$("${OC_CLIENT}" -n "${namespace}" describe pod "${pod_name}" | grep -i Requests -A2 | grep 'memory' | awk -F ":" '{print $2}' | tr -d ' ')
+    local unit
+    unit="${mem: -1}"
+    local mult
+    mult=1
+    case "${unit}" in
+        K|k)
+            mult=1024
+            ;;
+        M|m)
+            mult=$((1024*1024))
+            ;;
+        G|g)
+            mult=$((1024*1024*1024))
+            ;;
+        T|t)
+            mult=$((1024*1024*1024*1024))
+            ;;
+        *)
+            mult=1
+            ;;
+    esac
+    ocpopLogVerbose "MEM REQUEST COMMAND:["${OC_CLIENT}" -n "${namespace}" describe pod ${pod_name} | grep -i Requests -A2 | grep 'memory' | awk -F ':' '{print $2}' | tr -d ' '"
+    ocpopLogVerbose "POD:[${pod_name}](Namespace:[${namespace}]) MEM Request With Unit:[${mem}] Unit:[${unit}] Mult:[${mult}]"
+    local mem_no_unit
+    mem_no_unit="${mem/${unit}/}"
+    local mult_mem
+    mult_mem=$((mem_no_unit*mult))
+    ocpopLogVerbose "POD:[${pod_name}](Namespace:[${namespace}]) MEM Request:[${mult_mem}] Unit:[${unit}] Mult:[${mult}]"
+    echo "${mult_mem}"
+}
+
+true <<'=cut'
+=pod
+
 =head2 ocpopHelmOperatorInstall
 
 Installs a Helm operator.
@@ -1187,12 +1375,14 @@ ocpopLibraryLoaded() {
     local PACKAGES=(git podman jq)
     echo -e "\nInstall packages required by the script functions when missing."
     rpm -q "${PACKAGES[@]}" || yum -y install "${PACKAGES[@]}"
+    #creating tmp dir for data
+    mkdir -p /var/tmp/ocpopLib && chmod 777 /var/tmp/ocpopLib
 
     if [ -n "$__INTERNAL_ocpopTmpDir" ]; then
-        rlLogDebug "Library common-cloud-orchestration/TestHelpers loaded."
+        rlLogDebug "Library common-cloud-orchestration/ocpop-lib loaded."
         return 0
     else
-        rlLogError "Failed loading library common-cloud-orchestration/TestHelpers."
+        rlLogError "Failed loading library common-cloud-orchestration/ocpop-lib."
         return 1
     fi
 
