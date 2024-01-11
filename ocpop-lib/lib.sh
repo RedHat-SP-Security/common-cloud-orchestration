@@ -47,7 +47,7 @@ ADV_PATH="adv"
 
 #Set up in tests
 TO_POD_START=120 #seconds
-TO_POD_STOP=5 #seconds
+TO_POD_STOP=120 #seconds
 TO_SERVICE_START=120 #seconds
 TO_SERVICE_STOP=120 #seconds
 
