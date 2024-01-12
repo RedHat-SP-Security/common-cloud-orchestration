@@ -1364,6 +1364,39 @@ ocpopGetVersion() {
     fi
 }
 
+true <<'=cut'
+=pod
+
+=head2 ocpopCheckOperatorChannel
+
+Check operator installation channel.
+
+    ocpopCheckOperatorChannel OPERATOR_NAME CHANNEL
+
+=over
+
+=item
+
+    OPERATOR_NAME - Name of installed operator.
+
+=item
+
+    CHANNEL - Specify used installation channel.
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopCheckOperatorChannel() {
+
+    local OPERATOR_NAME=$1
+    local CHANNEL=$2
+
+    rlRun "$OC_CLIENT get subscription $OPERATOR_NAME -n $OPERATOR_NAMESPACE -o json | jq '.spec.channel' | grep \"${CHANNEL}\""
+}
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Verification
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
