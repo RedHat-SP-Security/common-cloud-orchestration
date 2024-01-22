@@ -22,7 +22,11 @@ OLM_INSTALL_TIMEOUT="5m"
 
 rlJournalStart
 
-    rlPhaseStartTest "Main test"
+    rlPhaseStartTest "Configuring and starting minikube"
+          if [ "${UPSTREAM_TANG}" == "true" ]; then
+            export IP_REGISTRY=$(hostname -I | awk '{print $1}')
+            PULL_LOCAL_IMG="--insecure-registry=\"${IP_REGISTRY}:5000\""
+          fi
           #install operator sdk
           ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n "$(uname -m)" ;; esac)
           OS=$(uname | awk '{print tolower($0)}')
@@ -45,7 +49,7 @@ rlJournalStart
           rlRun "chmod +x kubectl"
           rlRun "mv kubectl  /usr/local/bin/"
           rlRun "kubectl version --client -o json"
-          rlRun "minikube start --force"
+          rlRun "minikube start --force $PULL_LOCAL_IMG"
           #not trying to install again with rerun
           if command -v operator-sdk &>/dev/null && kubectl get catalogsource -n olm &>/dev/null; then
             rlRun "echo 'OLM as already installed.'"
