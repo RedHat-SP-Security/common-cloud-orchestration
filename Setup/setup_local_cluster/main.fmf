@@ -7,7 +7,7 @@ component:
 test: ./runtest.sh
 tag:
   - CI-Tier-1
-require+:
+require:
   - libvirt-daemon
   - podman
   - wget
