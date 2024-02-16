@@ -17,7 +17,7 @@
 
 [ -n "${TANG_OPERATOR_UPSTREAM_URL}" ] || TANG_OPERATOR_UPSTREAM_URL="https://github.com/latchset/tang-operator.git"
 [ -n "${TANG_OPERATOR_UPSTREAM_BRANCH}" ] || TANG_OPERATOR_UPSTREAM_BRANCH="main"
-[ -n "${ATTESTATION_OPERATOR_UPSTREAM_URL}" ] || ATTESTATION_OPERATOR_UPSTREAM_URL="https://github.com/latchset/tang-operator.git"
+[ -n "${ATTESTATION_OPERATOR_UPSTREAM_URL}" ] || ATTESTATION_OPERATOR_UPSTREAM_URL="https://github.com/keylime/attestation-operator.git"
 [ -n "${ATTESTATION_OPERATOR_UPSTREAM_BRANCH}" ] || ATTESTATION_OPERATOR_UPSTREAM_BRANCH="main"
 
 rlJournalStart
@@ -40,7 +40,10 @@ rlJournalStart
             rlRun "pushd /var/tmp/tang-operator_sources"
             CONTROLLER_IMG="tang-controller"
             OP_BUNDLE_IMG="tang-operator-bundle"
-            rlRun "sed -i 's/FROM golang:1.21 as builder/FROM docker.io\/library\/golang:1.21 as builder/g' Dockerfile"  
+            rlRun "sed -i 's/FROM golang:1.21 as builder/FROM docker.io\/library\/golang:1.21 as builder/g' Dockerfile"
+            #Need to export to use it in make build commands
+            export IMG="${IP}:5000/${CONTROLLER_IMG}:latest"
+            export BUNDLE_IMG="${IP}:5000/${OP_BUNDLE_IMG}:latest"
         fi
         
         if [ -d /var/tmp/attestation-operator_sources ]; then
@@ -48,6 +51,9 @@ rlJournalStart
             CONTROLLER_IMG="attestation-controller"
             OP_BUNDLE_IMG="attestation-operator-bundle"
             rlRun "sed -i 's/FROM golang:1.20 as builder/FROM docker.io\/library\/golang:1.20 as builder/g' build/docker/attestation-operator/Dockerfile"
+            #Need to export to use it in make build commands
+            export DOCKER_TAG="${IP}:5000/${CONTROLLER_IMG}:latest"
+            export BUNDLE_IMG="${IP}:5000/${OP_BUNDLE_IMG}:latest"
         fi
 cat <<EOF >> /etc/containers/registries.conf
 [[registry]]
@@ -55,9 +61,6 @@ location = "${IP}:5000"
 insecure = true
 EOF
         rlRun "mkdir -p /var/lib/registry"
-        #Need to export to use it in make build commands
-        export IMG="${IP}:5000/${CONTROLLER_IMG}:latest"
-        export BUNDLE_IMG="${IP}:5000/${OP_BUNDLE_IMG}:latest"
         rlRun "podman container run -dt -p 5000:5000 --name registry --volume registry:/var/lib/registry:Z docker.io/library/registry:2"
         #Check if it's registry accesible
         rlRun "curl ${IP}:5000/v2/_catalog" 0 "Checking registry availability"
