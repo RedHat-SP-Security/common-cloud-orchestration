@@ -1,0 +1,7 @@
+summary: Run bundle operator.
+description: |
+    Run bundle operator via operator sdk.
+contact: Patrik Koncity <pkoncity@redhat.com>
+test: ./runtest.sh
+duration: 5m
+enabled: true
