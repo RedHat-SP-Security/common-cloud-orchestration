@@ -39,6 +39,9 @@
 ocpopLibDir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export ocpopLibDir
 
+#Bundle install timeout
+TO_BUNDLE="15m"
+
 # Timeout durations in seconds
 EXECUTION_MODE=
 TO_WGET_CONNECTION=10 #seconds
@@ -1396,6 +1399,117 @@ ocpopCheckOperatorChannel() {
 
     rlRun "$OC_CLIENT get subscription $OPERATOR_NAME -n $OPERATOR_NAMESPACE -o json | jq '.spec.channel' | grep \"${CHANNEL}\""
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopBundleStart
+
+Run operator bundle via operator-sdk.
+
+    ocpopBundleStart
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopBundleStart() {
+    if [ "${DISABLE_BUNDLE_INSTALL_TESTS}" == "1" ];
+    then
+      rlLog "User asked to not install/uninstall by using DISABLE_BUNDLE_INSTALL_TESTS=1"
+      return 0
+    fi
+    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
+    then
+      rlRun "operator-sdk --verbose run bundle --timeout ${TO_BUNDLE} ${IMAGE_VERSION} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE}"
+    else
+      rlRun "operator-sdk run bundle --timeout ${TO_BUNDLE} ${IMAGE_VERSION} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null"
+    fi
+    return $?
+}
+
+true <<'=cut'
+=pod
+
+=head2 ocpopBundleInitialStop
+
+Initialy stop operator via operator-sdk.
+
+    ocpopBundleInitialStop
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopBundleInitialStop() {
+    if [ "${DISABLE_BUNDLE_INSTALL_TESTS}" == "1" ];
+    then
+      rlLog "User asked to not install/uninstall by using DISABLE_BUNDLE_INSTALL_TESTS=1"
+      return 0
+    fi
+    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
+    then
+        operator-sdk --verbose cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE}
+    else
+        operator-sdk cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null
+    fi
+    if [ $? -eq 0 ];
+    then
+        ocpopCheckPodAmount 0 ${TO_ALL_POD_CONTROLLER_TERMINATE} ${OPERATOR_NAMESPACE}
+    fi
+    return 0
+}
+
+true <<'=cut'
+=pod
+
+=head2 ocpopBundleStop
+
+Stop operator via operator-sdk.
+
+    ocpopBundleStop
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
+
+ocpopBundleStop() {
+    if [ "${DISABLE_BUNDLE_INSTALL_TESTS}" == "1" ];
+    then
+      rlLog "User asked to not install/uninstall by using DISABLE_BUNDLE_INSTALL_TESTS=1"
+      return 0
+    fi
+    if [ "${DISABLE_BUNDLE_UNINSTALL_TESTS}" == "1" ];
+    then
+      rlLog "User asked to not uninstall by using DISABLE_BUNDLE_UNINSTALL_TESTS=1"
+      return 0
+    fi
+    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
+    then
+        operator-sdk cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE}
+    else
+        operator-sdk cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null
+    fi
+    if [ $? -eq 0 ];
+    then
+        ocpopCheckPodAmount 0 ${TO_ALL_POD_CONTROLLER_TERMINATE} ${OPERATOR_NAMESPACE}
+    fi
+    return 0
+}
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Verification

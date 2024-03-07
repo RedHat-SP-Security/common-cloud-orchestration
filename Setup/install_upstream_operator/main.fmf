@@ -2,8 +2,6 @@ summary: Build upstream operator.
 description: |
     Build operator from upstream code.
 contact: Patrik Koncity <pkoncity@redhat.com>
-component:
-  - tang
 test: ./runtest.sh
 require:
   - podman
