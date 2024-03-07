@@ -26,15 +26,14 @@ rlJournalStart
         export IP=$(hostname -I | awk '{print $1}')
         if [ -d /var/tmp/tang-operator_sources ]; then
             rlLogInfo "Compiling tang-operator bits from /var/tmp/tang-operator_sources"
-        else
+        elif [ "${REPO_CLONE}" == "tang" ]; then
             rlLogInfo "Compiling tang-operator from cloned upstream repo"
             rlRun "git clone -b ${TANG_OPERATOR_UPSTREAM_BRANCH} ${TANG_OPERATOR_UPSTREAM_URL} /var/tmp/tang-operator_sources"
-        fi
-        if [ -d /var/tmp/attestation-operator_sources ]; then
-            rlLogInfo "Compiling attestation-operator bits from /var/tmp/tang-operator_sources"
-        else
+        elif [ -d /var/tmp/attestation-operator_sources ]; then
+            rlLogInfo "Compiling attestation-operator bits from /var/tmp/attestation-operator_sources"
+        elif [ "${REPO_CLONE}" == "attestation" ]; then
             rlLogInfo "Compiling attestation-operator from cloned upstream repo"
-            rlRun "git clone -b ${ATTESTATION_OPERATOR_UPSTREAM_BRANCH} ${ATTESTATION_OPERATOR_UPSTREAM_URL} /var/tmp/tang-operator_sources"
+            rlRun "git clone -b ${ATTESTATION_OPERATOR_UPSTREAM_BRANCH} ${ATTESTATION_OPERATOR_UPSTREAM_URL} /var/tmp/attestation-operator_sources"
         fi
         if [ -d /var/tmp/tang-operator_sources ]; then
             rlRun "pushd /var/tmp/tang-operator_sources"
