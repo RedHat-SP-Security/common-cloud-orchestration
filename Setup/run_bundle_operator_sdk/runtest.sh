@@ -34,14 +34,13 @@ TIMEOUT_CONTROLLER_KEEPS_RUNNING=10
 rlJournalStart
     rlPhaseStartSetup
         rlRun 'rlImport "./ocpop-lib"' || rlDie "cannot import ocpop lib"
-        rlRun ". ../../TestHelpers/functions.sh" || rlDie "cannot import function script"
         ocpopDumpDate
         ocpopDumpInfo
         rlRun "ocpopDumpOpenShiftClientStatus" 0 "Checking OpenshiftClient installation"
         rlRun "operator-sdk version > /dev/null" 0 "Checking operator-sdk installation"
         rlRun "ocpopCheckClusterStatus" 0 "Checking cluster status"
         # In case previous execution was abruptelly stopped:
-        rlRun "bundleInitialStop" 0 "Cleaning already installed tang-operator (if any)"
-        rlRun "bundleStart" 0 "Installing operator-bundle"
+        rlRun "ocpopBundleInitialStop" 0 "Cleaning already installed tang-operator (if any)"
+        rlRun "ocpopBundleStart" 0 "Installing operator-bundle"
     rlPhaseEnd
 rlJournalEnd
