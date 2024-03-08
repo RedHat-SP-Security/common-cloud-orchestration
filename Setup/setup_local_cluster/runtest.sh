@@ -23,7 +23,8 @@ OLM_INSTALL_TIMEOUT="5m"
 rlJournalStart
 
     rlPhaseStartTest "Configuring and starting minikube"
-          if [ "${UPSTREAM_TANG}" == "true" ]; then
+          #Need to setup for pulling insecure registry
+          if [ "${UPSTREAM_OPERATOR}" == "true" ]; then
             export IP_REGISTRY=$(hostname -I | awk '{print $1}')
             PULL_LOCAL_IMG="--insecure-registry=\"${IP_REGISTRY}:5000\""
           fi
