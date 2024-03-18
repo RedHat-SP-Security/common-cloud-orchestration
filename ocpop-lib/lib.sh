@@ -95,6 +95,11 @@ fi
 export __INTERNAL_ocpopTmpDir
 [ -n "$__INTERNAL_ocpopTmpDir" ] || __INTERNAL_ocpopTmpDir="/var/tmp/ocpopLib"
 
+#Initialize env var upstream operator
+if [ -d /etc/profile.d/upstream_operator_init.sh ]; then
+    sh /etc/profile.d/upstream_operator_init.sh
+fi
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Functions
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

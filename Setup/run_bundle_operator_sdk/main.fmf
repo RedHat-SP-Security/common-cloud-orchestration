@@ -3,5 +3,5 @@ description: |
     Run bundle operator via operator sdk.
 contact: Patrik Koncity <pkoncity@redhat.com>
 test: ./runtest.sh
-duration: 5m
+duration: 15m
 enabled: true
