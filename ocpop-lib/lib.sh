@@ -814,6 +814,59 @@ ocpopGetServiceIp() {
 true <<'=cut'
 =pod
 
+=head2 ocpopGetServiceClusterIp
+
+ Gets the Cluster IP address of a service.
+
+    ocpopGetServiceClusterIp service_name namespace iterations
+
+=over
+
+=item
+
+    service_name - Name of service.
+
+=item
+
+    namespace - Namespace where are services.
+
+=item
+
+    iterations - Number of iterations in seconds for get service IP.
+
+=back
+
+Returns 0 when getting service ip was successful, 1 otherwise.
+
+=cut
+
+ocpopGetServiceClusterIp() {
+    local service_name=$1
+    local namespace=$2
+    local iterations=$3
+    counter=0
+    ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
+    while [ ${counter} -lt ${iterations} ];
+    do
+        local service_ip
+        service_ip=$("${OC_CLIENT}" get service "${service_name}" -n "${namespace}" -o json | jq '.spec.clusterIP' | tr -d '"')
+        ocpopLogVerbose "CLUSTER IP:[${service_ip}](Namespace:[${namespace}])"
+        if [ -n "${service_ip}" ] && [ "${service_ip}" != "<pending>" ];
+        then
+            echo "${service_ip}"
+            return 0
+        else
+            ocpopLogVerbose "PENDING OR EMPTY CLUSTER IP:[${service_ip}], COUNTER[${counter}/${iterations}]"
+        fi
+        counter=$((counter+1))
+        sleep 1
+    done
+    return 1
+}
+
+true <<'=cut'
+=pod
+
 =head2 ocpopGetServicePort
 
 Gets the port of a service.
