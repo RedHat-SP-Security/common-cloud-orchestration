@@ -44,8 +44,8 @@ TO_BUNDLE="15m"
 
 # Timeout durations in seconds
 EXECUTION_MODE=
-TO_WGET_CONNECTION=10 #seconds
-export TO_WGET_CONNECTION
+TO_CURL_CONNECTION=10 #seconds
+export TO_CURL_CONNECTION
 ADV_PATH="adv"
 
 #Set up in tests
@@ -620,9 +620,9 @@ ocpopCheckServiceUp() {
     while [ ${counter} -lt ${iterations} ];
     do
         if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
-            wget -O /dev/null -o /dev/null --timeout=${TO_WGET_CONNECTION} ${http_service}
+            curl -o /dev/null --connect-timeout "${TO_CURL_CONNECTION}" "${http_service}"
         else
-            wget -O /dev/null -o /dev/null --timeout=${TO_WGET_CONNECTION} ${http_service} 2>/dev/null 1>/dev/null
+            curl -o /dev/null --connect-timeout "${TO_CURL_CONNECTION}" "${http_service}" 2>/dev/null 1>/dev/null
         fi
         if [ $? -eq 0 ]; then
             return 0
@@ -939,14 +939,14 @@ ocpopServiceAdv() {
     URL="http://${ip}:${port}/${ADV_PATH}"
     local file
     file=$(mktemp)
-    ### wget
-    COMMAND="wget ${URL} --timeout=${TO_WGET_CONNECTION} -O ${file} -o /dev/null"
+    ### curl
+    COMMAND="curl ${URL} --connect-timeout ${TO_CURL_CONNECTION} -o ${file}"
     ocpopLogVerbose "CONNECTION_COMMAND:[${COMMAND}]"
-    ${COMMAND}
-    wget_res=$?
-    ocpopLogVerbose "WGET RESULT:$(cat ${file})"
+    ${COMMAND} 2>/dev/null
+    curl_res=$?
+    ocpopLogVerbose "CURL RESULT:$(cat ${file})"
     JSON_ADV=$(cat "${file}")
-    ocpopLogVerbose "CONNECTION_COMMAND:[${COMMAND}],RESULT:[${wget_res}],JSON_ADV:[${JSON_ADV}])"
+    ocpopLogVerbose "CONNECTION_COMMAND:[${COMMAND}],RESULT:[${curl_res}],JSON_ADV:[${JSON_ADV}])"
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
         jq . -M -a < "${file}"
     else
@@ -954,7 +954,7 @@ ocpopServiceAdv() {
     fi
     jq_res=$?
     rm "${file}"
-    return $((wget_res+jq_res))
+    return $((curl_res+jq_res))
 }
 
 true <<'=cut'
@@ -1005,17 +1005,17 @@ ocpopServiceAdvCompare() {
     jq_json_file1=$(mktemp)
     jq_json_file2=$(mktemp)
     local command1
-    command1="wget ${url} --timeout=${TO_WGET_CONNECTION} -O ${file1} -o /dev/null"
+    command1="curl ${url} --connect-timeout ${TO_CURL_CONNECTION} -o ${file1}"
     local command2
-    command2="wget ${url2} --timeout=${TO_WGET_CONNECTION} -O ${file2} -o /dev/null"
+    command2="curl ${url2} --connect-timeout ${TO_CURL_CONNECTION} -o ${file2}"
     ocpopLogVerbose "CONNECTION_COMMAND:[${command1}]"
     ocpopLogVerbose "CONNECTION_COMMAND:[${command2}]"
-    ${command1}
-    wget_res1=$?
-    ${command2}
-    wget_res2=$?
-    ocpopLogVerbose "CONNECTION_COMMAND:[${command1}],RESULT:[${wget_res1}],json_adv:[$(cat ${file1})]"
-    ocpopLogVerbose "CONNECTION_COMMAND:[${command2}],RESULT:[${wget_res2}],json_adv:[$(cat ${file2})]"
+    ${command1} 2>/dev/null
+    curl_res1=$?
+    ${command2} 2>/dev/null
+    curl_res2=$?
+    ocpopLogVerbose "CONNECTION_COMMAND:[${command1}],RESULT:[${curl_res1}],json_adv:[$(cat ${file1})]"
+    ocpopLogVerbose "CONNECTION_COMMAND:[${command2}],RESULT:[${curl_res2}],json_adv:[$(cat ${file2})]"
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
         jq . -M -a < "${file1}" 2>&1 | tee "${jq_json_file1}"
     else
@@ -1031,7 +1031,7 @@ ocpopServiceAdvCompare() {
     rlAssertDiffer "${jq_json_file1}" "${jq_json_file2}"
     jq_equal=$?
     rm "${jq_json_file1}" "${jq_json_file2}"
-    return $((wget_res1+wget_res2+jq_res1+jq_res2+jq_equal))
+    return $((curl_res1+curl_res2+jq_res1+jq_res2+jq_equal))
 }
 
 true <<'=cut'

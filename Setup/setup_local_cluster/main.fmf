@@ -6,7 +6,7 @@ test: ./runtest.sh
 require:
   - libvirt-daemon
   - podman
-  - wget
+  - curl
 duration: 10m
 enabled: true
 
