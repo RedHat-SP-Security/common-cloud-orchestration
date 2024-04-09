@@ -25,17 +25,15 @@ rlJournalStart
     rlPhaseStartTest "Configuring and starting minikube"
           #Need to setup for pulling insecure registry
           if [ "${UPSTREAM_OPERATOR}" == "true" ]; then
-            export IP_REGISTRY=$(hostname -I | awk '{print $1}')
+            IP_REGISTRY=$(hostname -I | awk '{print $1}')
             PULL_LOCAL_IMG="--insecure-registry=\"${IP_REGISTRY}:5000\""
           fi
           #install operator sdk
           ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n "$(uname -m)" ;; esac)
           OS=$(uname | awk '{print tolower($0)}')
           #download latest operator
-          crul $(curl https://api.github.com/repos/operator-framework/operator-sdk/releases/latest \
-| grep "operator-sdk_${OS}_${ARCH}" \
-| cut -d : -f 2,3 \
-| tr -d '"') 2>/dev/null 1/dev/null
+
+          rlRun "curl -LO $(curl -s https://api.github.com/repos/operator-framework/operator-sdk/releases/latest | grep "browser" | grep "operator-sdk_${OS}_${ARCH}" | cut -d '"' -f 4 | tr -d '\n' )"
           rlRun "chmod +x operator-sdk_${OS}_${ARCH} && mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk"
 
           #setup of libvirt
