@@ -15,7 +15,7 @@
 #
 . /usr/share/beakerlib/beakerlib.sh || exit 1
 
-[ -n "${TANG_OPERATOR_UPSTREAM_URL}" ] || TANG_OPERATOR_UPSTREAM_URL="https://github.com/latchset/tang-operator.git"
+[ -n "${TANG_OPERATOR_UPSTREAM_URL}" ] || TANG_OPERATOR_UPSTREAM_URL="https://github.com/openshift/nbde-tang-server.git"
 [ -n "${TANG_OPERATOR_UPSTREAM_BRANCH}" ] || TANG_OPERATOR_UPSTREAM_BRANCH="main"
 [ -n "${ATTESTATION_OPERATOR_UPSTREAM_URL}" ] || ATTESTATION_OPERATOR_UPSTREAM_URL="https://github.com/keylime/attestation-operator.git"
 [ -n "${ATTESTATION_OPERATOR_UPSTREAM_BRANCH}" ] || ATTESTATION_OPERATOR_UPSTREAM_BRANCH="main"
