@@ -37,9 +37,10 @@ rlJournalStart
         fi
         if [ -d /var/tmp/tang-operator_sources ]; then
             rlRun "pushd /var/tmp/tang-operator_sources"
-            CONTROLLER_IMG="tang-controller"
-            OP_BUNDLE_IMG="tang-operator-bundle"
-            rlRun "sed -i 's/FROM golang:1.22 as builder/FROM docker.io\/library\/golang:latest as builder/g' Dockerfile"
+            CONTROLLER_IMG="nbde-tang-server-controller"
+            OP_BUNDLE_IMG="nbde-tang-server-operator-bundle"
+            #probably obsoleted
+            #rlRun "sed -i 's/FROM golang:c as builder/FROM docker.io\/library\/golang:1.23.2 as builder/g' Dockerfile"
             #Need to export to use it in make build commands
             export IMG="${IP}:5000/${CONTROLLER_IMG}:latest"
             export BUNDLE_IMG="${IP}:5000/${OP_BUNDLE_IMG}:latest"
