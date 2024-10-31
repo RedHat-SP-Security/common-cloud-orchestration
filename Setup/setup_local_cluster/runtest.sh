@@ -18,7 +18,7 @@
 MINIKUBE_URL="https://storage.googleapis.com/minikube/releases/latest"
 MINIKUBE_FILE="minikube-latest.x86_64.rpm"
 MINIKUBE_URL_FILE="${MINIKUBE_URL}/${MINIKUBE_FILE}"
-OLM_INSTALL_TIMEOUT="5m"
+[ -z "${OLM_INSTALL_TIMEOUT}" ] && OLM_INSTALL_TIMEOUT="5m"
 
 rlJournalStart
 
