@@ -1597,3 +1597,68 @@ ocpopLibraryLoaded() {
     fi
 
 }
+
+
+true <<'=cut'
+=pod
+
+=head2 printTokenFromFile
+
+Print authentication token from configuration file
+
+    printTokenFromFile
+
+=over
+
+=back
+
+Returns 0 if token is found, 1 otherwise.
+
+=cut
+
+printTokenFromFile() {
+    if [ -f "${1}" ]; then
+        TOKEN=$(grep 'token' "${1}" | awk -F ':' '{print $2}' | tr -d ' ')
+	if [ -n "${TOKEN}" ]; then
+            echo "${TOKEN}"
+            return 0
+	fi
+    fi
+    return 1
+}
+
+true <<'=cut'
+=pod
+
+=head2 printTokenFromConfiguration
+
+Print authentication token from cluster configuration
+
+    printTokenFromConfiguration
+
+=over
+
+=back
+
+Returns 0 if token is found, 1 otherwise.
+
+=cut
+
+printTokenFromConfiguration() {
+    if [ -n "${KUBECONFIG}" ]; then
+        IFS=":"
+        read -ra files_array<<<"${KUBECONFIG}"
+        for file in "${files_array[@]}";
+        do
+            if printTokenFromFile "${file}"; then
+                return 0
+            fi
+        done
+    fi
+    if [ -f "${HOME}/.kube/config" ]; then
+        if printTokenFromFile "${file}"; then
+            return 0
+        fi
+    fi
+    return 1
+}
