@@ -1650,13 +1650,13 @@ ocpopPrintTokenFromConfiguration() {
         read -ra files_array<<<"${KUBECONFIG}"
         for file in "${files_array[@]}";
         do
-            if printTokenFromFile "${file}"; then
+            if ocpopPrintTokenFromFile "${file}"; then
                 return 0
             fi
         done
     fi
     if [ -f "${HOME}/.kube/config" ]; then
-        if printTokenFromFile "${file}"; then
+        if ocpopPrintTokenFromFile "${file}"; then
             return 0
         fi
     fi
