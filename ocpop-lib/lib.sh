@@ -1602,11 +1602,11 @@ ocpopLibraryLoaded() {
 true <<'=cut'
 =pod
 
-=head2 printTokenFromFile
+=head2 ocpopPrintTokenFromFile
 
 Print authentication token from configuration file
 
-    printTokenFromFile
+    ocpopPrintTokenFromFile
 
 =over
 
@@ -1616,7 +1616,7 @@ Returns 0 if token is found, 1 otherwise.
 
 =cut
 
-printTokenFromFile() {
+ocpopPrintTokenFromFile() {
     if [ -f "${1}" ]; then
         TOKEN=$(grep 'token' "${1}" | awk -F ':' '{print $2}' | tr -d ' ')
 	if [ -n "${TOKEN}" ]; then
@@ -1630,11 +1630,11 @@ printTokenFromFile() {
 true <<'=cut'
 =pod
 
-=head2 printTokenFromConfiguration
+=head2 ocpopPrintTokenFromConfiguration
 
 Print authentication token from cluster configuration
 
-    printTokenFromConfiguration
+    ocpopPrintTokenFromConfiguration
 
 =over
 
@@ -1644,7 +1644,7 @@ Returns 0 if token is found, 1 otherwise.
 
 =cut
 
-printTokenFromConfiguration() {
+ocpopPrintTokenFromConfiguration() {
     if [ -n "${KUBECONFIG}" ]; then
         IFS=":"
         read -ra files_array<<<"${KUBECONFIG}"
