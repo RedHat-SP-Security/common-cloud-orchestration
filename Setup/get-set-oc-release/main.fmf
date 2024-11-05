@@ -1,0 +1,14 @@
+summary: Get and Set oc release for further installation
+description: For matrix testing is needed to test more current version of oc. Based on set env var this task set version of oc which should be install
+contact: Patrik Koncity <pkoncity@redhat.com>
+component: []
+test: ./runtest.sh
+framework: beakerlib
+require:
+ - curl
+duration: 3m
+enabled: true
+adjust:
+-   enabled: false
+    when: distro == rhel-4, rhel-5, rhel-6, rhel-7, rhel-8
+    continue: false
