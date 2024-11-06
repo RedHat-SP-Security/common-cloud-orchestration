@@ -72,8 +72,8 @@ spec:
           --compose "${COMPOSE}" \
           --arch "${ARCH}" \
           --timeout "${TIMEOUT}" \
-          --hardware "memory='>= 16 GB'" \
-          --hardware "virtualization.is-supported='true'" \
-          --hardware "disk.size='>= 80 GB'" \
-          --hardware "cpu.processors='>= 4'" \
+          --hardware memory='>= 16 GB' \
+          --hardware virtualization.is-supported='true' \
+          --hardware disk.size='>= 80 GB' \
+          --hardware cpu.processors='>= 4' \
           --environment INDEX_OCP_VER="$(echo ${INDEX_OCP_VER})" 
