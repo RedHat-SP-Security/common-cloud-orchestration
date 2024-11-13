@@ -40,6 +40,10 @@ spec:
     - name: KONFLUX_FMF_PLAN
       default: "/Plans/konflux_ci.fmf"
       description: Plan which will be executed in testing-farm request.
+    - name: DISTRO
+      default: "RHEL-9.3"
+      type: string
+      description: Context of OS which will be set to TF.
   tasks:
     - name: testing-farm
       taskRef:
@@ -70,3 +74,5 @@ spec:
           value: $(params.INDEX_OCP_VER)
         - name: KONFLUX_FMF_PLAN
           value: $(params.KONFLUX_FMF_PLAN)
+        - name: DISTRO
+          value: $(params.DISTRO)
