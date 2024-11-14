@@ -1,0 +1,9 @@
+summary: Install and setup OC
+description: |
+    Install and setup openshift client.
+contact: Patrik Koncity <pkoncity@redhat.com>
+test: ./runtest.sh
+recommend:
+  - curl
+duration: 10m
+enabled: true

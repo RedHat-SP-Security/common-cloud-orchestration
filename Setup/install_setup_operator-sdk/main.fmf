@@ -1,0 +1,9 @@
+summary: Install and setup operator-sdk
+description: |
+    Install operator via helm.
+contact: Patrik Koncity <pkoncity@redhat.com>
+test: ./runtest.sh
+recommend:
+  - curl
+duration: 10m
+enabled: true
