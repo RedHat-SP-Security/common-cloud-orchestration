@@ -1461,6 +1461,66 @@ ocpopCheckOperatorChannel() {
 true <<'=cut'
 =pod
 
+=head2 ocpopSoftwareUninstall
+
+Installation wrapper.
+IF IIB_CATALOG_IMAGE is defined:
+  -> Calls to ocpopUninstallCatalogSource()
+ELSE (By default):
+- Calls to ocpopBundleStop()
+
+    ocpopSoftwareInstall
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopSoftwareUninstall() {
+    if [ -z "${IIB_CATALOG_IMAGE}" ]; then
+      ocpopBundleStop
+    else
+      ocpopUninstallCatalogSource
+    fi
+}
+
+
+true <<'=cut'
+=pod
+
+=head2 ocpopSoftwareInstall
+
+Installation wrapper.
+IF IIB_CATALOG_IMAGE is defined:
+  -> Calls to ocpopInstallFromCatalogSource()
+ELSE (By default):
+- Calls to ocpopBundleStart()
+
+    ocpopSoftwareInstall
+
+=over
+
+=back
+
+Returns 0.
+
+=cut
+
+ocpopSoftwareInstall() {
+    if [ -z "${IIB_CATALOG_IMAGE}" ]; then
+      ocpopBundleStart
+    else
+      ocpopInstallFromCatalogSource
+    fi
+}
+
+
+true <<'=cut'
+=pod
+
 =head2 ocpopBundleStart
 
 Run operator bundle via operator-sdk.
@@ -1488,6 +1548,90 @@ ocpopBundleStart() {
       rlRun "operator-sdk run bundle --timeout ${TO_BUNDLE} ${IMAGE_VERSION} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null"
     fi
     return $?
+}
+
+true <<'=cut'
+=pod
+
+=head2 ocpopInstallCatalogSource
+
+Install catalog source with provided image
+
+    ocpopInstallCatalogSource
+
+=over
+
+=back
+
+Returns 0 if OK, 1 if ERROR (no env vars recieved)
+
+=cut
+
+ocpopInstallFromCatalogSource() {
+    test -z "${OPERATOR_NAME}" && return 1
+    test -z "${IIB_CATALOG_IMAGE}" && return 1
+
+    mkdir -p "${__INTERNAL_ocpopTmpDir}"
+    cat << EOF > "${__INTERNAL_ocpopTmpDir}/catalog_source.yaml"
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: ${OPERATOR_NAME}-catalog
+  namespace: openshift-marketplace
+  annotations:
+    olm.catalogImageTemplate:
+      ${IIB_CATALOG_IMAGE}
+spec:
+  sourceType: grpc
+  image: ${IIB_CATALOG_IMAGE}
+  displayName: ${OPERATOR_NAME}
+  publisher: Red Hat Inc.
+  updateStrategy:
+    registryPoll:
+      interval: 30m
+EOF
+    ${OC_CLIENT} apply -f "${__INTERNAL_ocpopTmpDir}/catalog_source.yaml"
+
+    cat << EOF > "${__INTERNAL_ocpopTmpDir}/subscription.yaml"
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: ${OPERATOR_NAME}
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: ${OPERATOR_NAME}
+  source: ${OPERATOR_NAME}-catalog
+  sourceNamespace: openshift-marketplace
+EOF
+    ${OC_CLIENT} apply -f "${__INTERNAL_ocpopTmpDir}/subscription.yaml"
+    rm -fr "${__INTERNAL_ocpopTmpDir}/catalog_source.yaml"
+    rm -fr "${__INTERNAL_ocpopTmpDir}/subscription.yaml"
+}
+
+true <<'=cut'
+=pod
+
+=head2 ocpopUninstallCatalogSource
+
+Uninstall catalog source and its subscription
+
+    ocpopUninstallCatalogSource
+
+=over
+
+=back
+
+Returns 0 if OK, 1 if ERROR (no env vars recieved)
+
+=cut
+
+ocpopUninstallCatalogSource() {
+    test -z "${OPERATOR_NAME}" && return 1
+    oc delete subscription "${OPERATOR_NAME}" -n openshift-operators
+    oc delete catalogsource "${OPERATOR_NAME}-catalog" -n openshift-marketplace
+    return 0
 }
 
 true <<'=cut'
