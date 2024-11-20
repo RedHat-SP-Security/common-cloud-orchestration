@@ -82,10 +82,4 @@ spec:
           --hardware disk.size='>= 80 GB' \
           --hardware cpu.processors='>= 4' \
           --environment INDEX_OCP_VER="$(echo ${INDEX_OCP_VER})" \
-          --context distro="${DISTRO}" |& tee $tf_log
-          # Show URL with results
-          request_url=$(grep -oE "${TESTING_FARM_API_URL}.*$" $tf_log)
-          echo -n "==================================="
-          echo -n "There is URL with results of TF request:"
-          echo -n "${request_url}"
-          echo -n "==================================="
+          --context distro="${DISTRO}"
