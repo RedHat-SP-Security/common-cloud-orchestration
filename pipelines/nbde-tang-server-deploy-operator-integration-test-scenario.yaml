@@ -1,0 +1,24 @@
+---
+apiVersion: appstudio.redhat.com/v1beta2
+kind: IntegrationTestScenario
+metadata:
+  labels:
+    test.appstudio.openshift.io/optional: false
+  name: nbde-tang-server
+  namespace: konflux-sec-eng-spec-tenant
+spec:
+  application: nbde-tang-server
+  contexts:
+    - description: Component testing for my operator bundle
+      name: component_nbde-tang-server-multiarch-bundle
+  resolverRef:
+    params:
+      - name: url
+        value: https://github.com/konflux-ci/pipeline-samples.git
+      - name: revision
+        value: main
+      - name: pathInRepo
+        value: pipelines/integration/deploy-operator.yaml
+      - name: namespace
+        value: openshift-operators
+    resolver: git
