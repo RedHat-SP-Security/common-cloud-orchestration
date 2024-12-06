@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: testing-farm
+  name: testing-farm-crc-nbde-tang-server-e2e-tests-pipeline
 spec:
   description: >-
     Expects a list of container images to be provided via the SNAPSHOT parameter.
