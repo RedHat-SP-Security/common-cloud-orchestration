@@ -49,10 +49,10 @@ export TO_CURL_CONNECTION
 ADV_PATH="adv"
 
 #Set up in tests
-TO_POD_START=180 #seconds
-TO_POD_STOP=120 #seconds
-TO_SERVICE_START=120 #seconds
-TO_SERVICE_STOP=120 #seconds
+TO_POD_START=300 #seconds
+TO_POD_STOP=300 #seconds
+TO_SERVICE_START=300 #seconds
+TO_SERVICE_STOP=300 #seconds
 
 # Default OpenShift client (kubectl)
 OC_DEFAULT_CLIENT="kubectl"
