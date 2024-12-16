@@ -1632,7 +1632,7 @@ Returns 0 if OK, 1 if ERROR (no env vars recieved)
 ocpopUninstallCatalogSource() {
     test -z "${OPERATOR_NAME}" && return 1
     oc delete subscription "${OPERATOR_NAME}" -n "${OPERATOR_NAMESPACE}"
-    oc delete catalogsource "${OPERATOR_NAME}-catalog" -n "${OPERATOR_NAMESPACE}"
+    oc delete catalogsource "${OPERATOR_NAME}-catalog" -n openshift-marketplace
     return 0
 }
 
