@@ -1469,7 +1469,7 @@ IF IIB_CATALOG_IMAGE is defined:
 ELSE (By default):
 - Calls to ocpopBundleStop()
 
-    ocpopSoftwareInstall
+    ocpopSoftwareUninstall
 
 =over
 
@@ -1484,6 +1484,8 @@ ocpopSoftwareUninstall() {
       ocpopBundleStop
     else
       ocpopUninstallCatalogSource
+      csv=$(oc get csv -n "${OPERATOR_NAMESPACE}" | grep "${OPERATOR_NAME}" | head | awk '{print $1}')
+      test -z "${csv}" || oc delete csv "${csv}" -n "${OPERATOR_NAMESPACE}"
     fi
 }
 
@@ -1597,7 +1599,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: ${OPERATOR_NAME}
-  namespace: openshift-operators
+  namespace: ${OPERATOR_NAMESPACE}
 spec:
   channel: stable
   installPlanApproval: Automatic
@@ -1629,8 +1631,8 @@ Returns 0 if OK, 1 if ERROR (no env vars recieved)
 
 ocpopUninstallCatalogSource() {
     test -z "${OPERATOR_NAME}" && return 1
-    oc delete subscription "${OPERATOR_NAME}" -n openshift-operators
-    oc delete catalogsource "${OPERATOR_NAME}-catalog" -n openshift-marketplace
+    oc delete subscription "${OPERATOR_NAME}" -n "${OPERATOR_NAMESPACE}"
+    oc delete catalogsource "${OPERATOR_NAME}-catalog" -n "${OPERATOR_NAMESPACE}"
     return 0
 }
 
