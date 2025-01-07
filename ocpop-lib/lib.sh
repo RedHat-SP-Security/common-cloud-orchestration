@@ -1543,11 +1543,16 @@ ocpopBundleStart() {
       rlLog "User asked to not install/uninstall by using DISABLE_BUNDLE_INSTALL_TESTS=1"
       return 0
     fi
+    if [ -n "${KONFLUX}" ] && [ -n "${DOWNSTREAM_IMAGE_VERSION}" ]; then
+        BUNDLE_IMAGE_USED="${DOWNSTREAM_IMAGE_VERSION}"
+    else
+        BUNDLE_IMAGE_USED="${IMAGE_VERSION}"
+    fi
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
     then
-      rlRun "operator-sdk --verbose run bundle --timeout ${TO_BUNDLE} ${IMAGE_VERSION} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE}"
+      rlRun "operator-sdk --verbose run bundle --timeout ${TO_BUNDLE} ${BUNDLE_IMAGE_USED} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE}"
     else
-      rlRun "operator-sdk run bundle --timeout ${TO_BUNDLE} ${IMAGE_VERSION} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null"
+      rlRun "operator-sdk run bundle --timeout ${TO_BUNDLE} ${BUNDLE_IMAGE_USED} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null"
     fi
     return $?
 }
