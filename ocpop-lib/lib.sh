@@ -1578,6 +1578,12 @@ ocpopInstallFromCatalogSource() {
     test -z "${OPERATOR_NAME}" && return 1
     test -z "${IIB_CATALOG_IMAGE}" && return 1
 
+    if [ -n "${IIB_MIRROR_IMG}" ]; then
+        # Parse and extract the specific part (iib:863070)
+        PARSED_IMG=$(echo $IIB_CATALOG_IMAGE | awk -F'/' '{print $NF}')
+        IIB_CATALOG_IMAGE="image-registry.openshift-image-registry.svc:5000/openshift/${PARSED_IMG}"
+    fi
+
     mkdir -p "${__INTERNAL_ocpopTmpDir}"
     cat << EOF > "${__INTERNAL_ocpopTmpDir}/catalog_source.yaml"
 apiVersion: operators.coreos.com/v1alpha1
@@ -1613,6 +1619,10 @@ spec:
   sourceNamespace: openshift-marketplace
 EOF
     ${OC_CLIENT} apply -f "${__INTERNAL_ocpopTmpDir}/subscription.yaml"
+    if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ]; then
+        rlRun "cat ${__INTERNAL_ocpopTmpDir}/catalog_source.yaml"
+        rlRun "cat ${__INTERNAL_ocpopTmpDir}/subscription.yaml"
+    fi
     rm -fr "${__INTERNAL_ocpopTmpDir}/catalog_source.yaml"
     rm -fr "${__INTERNAL_ocpopTmpDir}/subscription.yaml"
 }
