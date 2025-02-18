@@ -780,6 +780,21 @@ ocpopGetServiceIp() {
     ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
     if [ ${EXECUTION_MODE} == "CRC" ];
     then
+        #while [ ${counter} -lt ${iterations} ];
+        #do
+        #local service_ip
+        #service_ip=$("${OC_CLIENT}" -n "${namespace}" describe service "${service_name}" | grep -i "Endpoints:" | awk -F ':' '{print $2}' | tr -d ' ')
+        #ocpopLogVerbose "SERVICE IP/HOST:[${service_ip}](Namespace:[${namespace}])"
+        #if [ -n "${service_ip}" ] && [ "${service_ip}" != "<pending>" ];
+        #then
+        #    echo "${service_ip}"
+        #   return 0
+        #else
+        #    ocpopLogVerbose "PENDING OR EMPTY IP/HOST:[${service_ip}], COUNTER[${counter}/${iterations}]"
+        #fi
+        #counter=$((counter+1))
+        #sleep 1
+        #done
         local crc_service_ip
         crc_service_ip=$(crc ip)
         ocpopLogVerbose "CRC MODE, SERVICE IP/HOST:[${crc_service_ip}]"
