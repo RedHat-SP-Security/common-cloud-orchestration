@@ -44,8 +44,12 @@ spec:
       default: "RHEL-9.3"
       type: string
       description: Context of OS which will be set to TF.
+  results:
+    - name: TEST_OUTPUT
+      value: "$(tasks.testing-farm.results.TEST_OUTPUT)"
   tasks:
     - name: testing-farm
+      timeout: "5h"
       taskRef:
         resolver: git
         params:
