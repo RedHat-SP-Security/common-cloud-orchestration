@@ -47,6 +47,9 @@ spec:
       default: "0"
       type: string
       description: Index which is used for setting release of OCP cluser.
+  results:
+    - name: TEST_OUTPUT
+      value: "$(tasks.nbde-e2e-tests.results.TEST_OUTPUT)"
   tasks:
     - name: eaas-provision-space
       taskRef:
@@ -117,10 +120,14 @@ spec:
               - name: instanceType
                 value: "m5.large"
     - name: nbde-e2e-tests
+      timeout: "5h"
       description: Task to run tests from service repository
       runAfter:
         - provision-cluster
       taskSpec:
+        results:
+          - description: Link to the Testing Farm result overview
+            name: TEST_OUTPUT
         volumes:
           - name: credentials
             emptyDir: {}
@@ -183,13 +190,34 @@ spec:
               echo "KUBECONFIG: ${KUBECONFIG}"
               echo "=====TF request========"
               export TESTING_FARM_API_TOKEN=$(cat /etc/secrets/testing-farm-token)
-              testing-farm request \
-              --environment SNAPSHOT="$(echo ${SNAPSHOT} | base64 -w 0)" \
-              --environment KUBECONFIG_CONTENT="$(cat ${KUBECONFIG} | base64 -w 0)" \
-              --git-url "${GIT_URL}" \
-              --git-ref "${GIT_REF}" \
-              --plan "${KONFLUX_FMF_PLAN}" \
-              --compose "${COMPOSE}" \
-              --arch "${ARCH}" \
-              --timeout "${TIMEOUT}" \
-              --context distro="${DISTRO}"
+              REQUEST_CMD='testing-farm request \
+                --environment SNAPSHOT="'$(echo ${SNAPSHOT} | base64 -w 0)'" \
+                --environment KUBECONFIG_CONTENT="'$(cat ${KUBECONFIG} | base64 -w 0)'" \
+                --git-url "'${GIT_URL}'" \
+                --git-ref "'${GIT_REF}'" \
+                --plan "'${KONFLUX_FMF_PLAN}'" \
+                --compose "'${COMPOSE}'" \
+                --arch "'${ARCH}'" \
+                --timeout "'${TIMEOUT}'" \
+                --context distro="'${DISTRO}'"'
+              # Print the constructed command for debugging purposes
+              echo "Executing command: $REQUEST_CMD "
+              OUTPUT_FILE="tf_results.txt"
+              eval "$REQUEST_CMD" | tee $OUTPUT_FILE
+              ARTIFACTS_URL=$(grep 'artifacts' $OUTPUT_FILE | grep -o 'https://[^[:space:]]\+')
+              if grep -q "tests failed" $OUTPUT_FILE; then
+                echo "Test FAILED"
+                TEST_OUTPUT_RESULT_PATH='{"result":"FAILURE","timestamp":"'"$(date -u +%s)"'","successes":0,"failures":1,"warnings":0,"note":"'"${ARTIFACTS_URL}"'"}'
+                echo $TEST_OUTPUT_RESULT_PATH > $(results.TEST_OUTPUT.path)
+                exit 1
+              elif grep -q "tests passed" $OUTPUT_FILE; then
+                echo "Test PASSED"
+                TEST_OUTPUT_RESULT_PATH='{"result":"SUCCESS","timestamp":"'"$(date -u +%s)"'","successes":1,"failures":0,"warnings":0,"note":"'"${ARTIFACTS_URL}"'"}'
+                echo $TEST_OUTPUT_RESULT_PATH > $(results.TEST_OUTPUT.path)
+                exit 0
+              elif grep -q "tests error" $OUTPUT_FILE; then
+                echo "Test ERRORED"
+                TEST_OUTPUT_RESULT_PATH='{"result":"ERROR","timestamp":"'"$(date -u +%s)"'","successes":0,"failures":1,"warnings":0,"note":"'"${ARTIFACTS_URL}"'"}'
+                echo $TEST_OUTPUT_RESULT_PATH > $(results.TEST_OUTPUT.path)
+                exit 1
+              fi
