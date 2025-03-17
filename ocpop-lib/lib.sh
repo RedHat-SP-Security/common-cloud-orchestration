@@ -1031,6 +1031,11 @@ ocpopServiceAdvCompare() {
     rlAssertDiffer "${jq_json_file1}" "${jq_json_file2}"
     jq_equal=$?
     rm "${jq_json_file1}" "${jq_json_file2}"
+    ocpopLogVerbose "curl_res1:[${curl_res1}]"
+    ocpopLogVerbose "curl_res2:[${curl_res2}]"
+    ocpopLogVerbose "jq_res1:[${jq_res1}]"
+    ocpopLogVerbose "jq_res2:[${jq_res2}]"
+    ocpopLogVerbose "jq_equal:[${jq_equal}]"
     return $((curl_res1+curl_res2+jq_res1+jq_res2+jq_equal))
 }
 
