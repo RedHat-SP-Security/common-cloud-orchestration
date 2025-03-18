@@ -3,7 +3,7 @@ kind: Task
 metadata:
   name: testing-farm-request
 spec:
-  description: Initiate testing-farm test given a list of container images 
+  description: Initiate testing-farm test given a list of container images
   params:
     - name: SNAPSHOT
       description: A list of container images that should undergo testing
@@ -26,13 +26,16 @@ spec:
       description: The testing-farm instance API to use
     - name: INDEX_OCP_VER
       default: "1"
-      description: Index which is used for setting release of OCP local cluser.
+      description: Index which is used for setting release of OCP local cluster.
     - name: KONFLUX_FMF_PLAN
       default: "/Plans/konflux_ci.fmf"
       description: Plan which will be executed in testing-farm request.
     - name: DISTRO
       default: "RHEL-9.3"
       description: Context of OS which will be set to TF.
+  results:
+    - description: Link to the Testing Farm result overview
+      name: TEST_OUTPUT
   volumes:
     - name: testing-farm-secret
       secret:
@@ -66,20 +69,40 @@ spec:
           value: $(params.DISTRO)
       script: |
         #!/usr/bin/env bash
-
         export TESTING_FARM_API_TOKEN=$(cat /etc/secrets/testing-farm-token)
+        REQUEST_CMD='testing-farm request \
+          --environment SNAPSHOT="'$(echo ${SNAPSHOT} | base64 -w 0)'" \
+          --git-url "'${GIT_URL}'" \
+          --git-ref "'${GIT_REF}'" \
+          --plan "'${KONFLUX_FMF_PLAN}'" \
+          --compose "'${COMPOSE}'" \
+          --arch "'${ARCH}'" \
+          --timeout "'${TIMEOUT}'" \
+          --hardware memory=">= 16 GB" \
+          --hardware virtualization.is-supported="true" \
+          --hardware disk.size=">= 80 GB" \
+          --hardware cpu.processors=">= 4" \
+          --environment INDEX_OCP_VER="'$(echo ${INDEX_OCP_VER})'" \
+          --context distro="'${DISTRO}'"'
+        # Print the constructed command for debugging purposes
+        echo "Executing command: $REQUEST_CMD "
+        OUTPUT_FILE="tf_results.txt"
+        eval "$REQUEST_CMD" | tee $OUTPUT_FILE
+        ARTIFACTS_URL=$(grep 'artifacts' $OUTPUT_FILE | grep -o 'https://[^[:space:]]\+')
+        if grep -q "tests failed" $OUTPUT_FILE; then
+          echo "Test FAILED"
+          TEST_OUTPUT_RESULT_PATH='{"result":"FAILURE","timestamp":"'"$(date -u +%s)"'","successes":0,"failures":1,"warnings":0,"note":"'"${ARTIFACTS_URL}"'"}'
+          echo $TEST_OUTPUT_RESULT_PATH > $(results.TEST_OUTPUT.path)
+          exit 1
+        elif grep -q "tests passed" $OUTPUT_FILE; then
+          echo "Test PASSED"
+          TEST_OUTPUT_RESULT_PATH='{"result":"SUCCESS","timestamp":"'"$(date -u +%s)"'","successes":1,"failures":0,"warnings":0,"note":"'"${ARTIFACTS_URL}"'"}'
+          echo $TEST_OUTPUT_RESULT_PATH > $(results.TEST_OUTPUT.path)
+          exit 0
+        elif grep -q "tests error" $OUTPUT_FILE; then
+          echo "Test ERRORED"
+          TEST_OUTPUT_RESULT_PATH='{"result":"ERROR","timestamp":"'"$(date -u +%s)"'","successes":0,"failures":1,"warnings":0,"note":"'"${ARTIFACTS_URL}"'"}'
+          echo $TEST_OUTPUT_RESULT_PATH > $(results.TEST_OUTPUT.path)
+          exit 1
+        fi
 
-        testing-farm request \
-          --environment SNAPSHOT="$(echo ${SNAPSHOT} | base64 -w 0)" \
-          --git-url "${GIT_URL}" \
-          --git-ref "${GIT_REF}" \
-          --plan "${KONFLUX_FMF_PLAN}" \
-          --compose "${COMPOSE}" \
-          --arch "${ARCH}" \
-          --timeout "${TIMEOUT}" \
-          --hardware memory='>= 16 GB' \
-          --hardware virtualization.is-supported='true' \
-          --hardware disk.size='>= 80 GB' \
-          --hardware cpu.processors='>= 4' \
-          --environment INDEX_OCP_VER="$(echo ${INDEX_OCP_VER})" \
-          --context distro="${DISTRO}"
