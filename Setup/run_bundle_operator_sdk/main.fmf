@@ -5,3 +5,4 @@ contact: Patrik Koncity <pkoncity@redhat.com>
 test: ./runtest.sh
 duration: 15m
 enabled: true
+id: 8e183d62-cd6d-4bcf-a9f2-24439521c583
