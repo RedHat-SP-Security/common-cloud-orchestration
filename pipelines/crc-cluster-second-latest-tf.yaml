@@ -34,7 +34,7 @@ spec:
       description: The testing-farm instance API to use
       type: string
     - name: INDEX_OCP_VER
-      default: "0"
+      default: "1"
       type: string
       description: Index which is used for setting release of OCP local cluser.
     - name: KONFLUX_FMF_PLAN
