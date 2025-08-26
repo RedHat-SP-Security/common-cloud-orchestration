@@ -33,15 +33,15 @@ rlJournalStart
         #workaround to not grep 4.9 versions
         CRC_VERSIONS_OUT=$(curl -s https://mirror.openshift.com/pub/openshift-v4/clients/crc/bundles/openshift/ | grep -oP '(?<=<span class="name">)[^<]+' | grep -v '^4\.9\.' | sort -V)
         CRC_VERSIONS_OUT=$(echo "$CRC_VERSIONS_OUT" | awk -F. '{print $1"."$2"."$3}' | sort -u -t. -k1,2)
-        TESTABLE_VERSIONS=$(echo "$CRC_VERSIONS_OUT" | tail -n 4)
+        TESTABLE_VERSIONS=$(echo "$CRC_VERSIONS_OUT" | tail -n 4 | sort -rV)
         # Use a for loop to read each line and store it in the array
         for line in $TESTABLE_VERSIONS; do
             ARRAY_OCP_VERSIONS+=("$line")
         done
         rlLogInfo "=========List of supported versions========="
         # Print the array to verify
-        for ARRAY_OCP_VERSIONS in "${ARRAY_OCP_VERSIONS[@]}"; do
-            rlRun "echo ${ARRAY_OCP_VERSIONS}"
+        for ver in "${ARRAY_OCP_VERSIONS[@]}"; do
+            rlRun "echo $ver"
         done
         rlLogInfo "INDEX WHICH WILL BE USED FOR OCP VERSION: $INDEX_OCP_VER"
         rlLogInfo "============================================"
