@@ -31,20 +31,25 @@ rlJournalStart
         # - sort -u -t. -k1,2: Get unique major.minor versions with the highest patch version
         # - for loop: Iterate over each unique version and echo it
         #workaround to not grep 4.9 versions
-        CRC_VERSIONS_OUT=$(curl -s https://mirror.openshift.com/pub/openshift-v4/clients/crc/bundles/openshift/ | grep -oP '(?<=<span class="name">)[^<]+' | grep -v '^4\.9\.' | sort -V)
+        CRC_VERSIONS_OUT=$(curl -s https://mirror.openshift.com/pub/openshift-v4/clients/crc/bundles/openshift/ \
+        | grep -oP '(?<=<span class="name">)[^<]+' \
+        | grep -v '^4\.9\.' \
+        | sort -V)
+            
+        # Normalize to X.Y.Z and keep only unique
         CRC_VERSIONS_OUT=$(echo "$CRC_VERSIONS_OUT" | awk -F. '{print $1"."$2"."$3}' | sort -u -t. -k1,2)
-        TESTABLE_VERSIONS=$(echo "$CRC_VERSIONS_OUT" | tail -n 4 | sort -rV)
-        # Use a for loop to read each line and store it in the array
-        for line in $TESTABLE_VERSIONS; do
-            ARRAY_OCP_VERSIONS+=("$line")
-        done
+        
+        # Take last 4, sort descending, and read directly into array
+        mapfile -t ARRAY_OCP_VERSIONS < <(echo "$CRC_VERSIONS_OUT" | tail -n 4 | sort -rV)
+        
         rlLogInfo "=========List of supported versions========="
-        # Print the array to verify
         for ver in "${ARRAY_OCP_VERSIONS[@]}"; do
             rlRun "echo $ver"
         done
         rlLogInfo "INDEX WHICH WILL BE USED FOR OCP VERSION: $INDEX_OCP_VER"
         rlLogInfo "============================================"
+        
+        # Pick version by index
         OCP_VERSION="${ARRAY_OCP_VERSIONS[$INDEX_OCP_VER]}"
         rlLogInfo "VERSION OF OCP, WHICH WILL BE INSTALLED: $OCP_VERSION"
         #For another shell sessions, where will be OCP cluster installed
