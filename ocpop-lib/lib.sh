@@ -779,29 +779,39 @@ ocpopGetServiceIp() {
     counter=0
     ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
 
+    # Specific logic for well-defined local environments
     if [ "${EXECUTION_MODE}" == "CRC" ]; then
-        local crc_service_ip
-        crc_service_ip=$(crc ip)
-        ocpopLogVerbose "CRC MODE, SERVICE IP/HOST:[${crc_service_ip}]"
-        echo "${crc_service_ip}"
+        echo "$(crc ip)"
         return 0
     elif [ "${EXECUTION_MODE}" == "MINIKUBE" ]; then
-        local minikube_service_ip
-        minikube_service_ip=$(minikube ip)
-        ocpopLogVerbose "MINIKUBE MODE, SERVICE IP/HOST:[${minikube_service_ip}]"
-        echo "${minikube_service_ip}"
+        echo "$(minikube ip)"
         return 0
     fi
 
-    # For CLUSTER mode, get a worker node IP. This is more reliable than waiting for ELB DNS.
-    local node_ip
-    node_ip=$("${OC_CLIENT}" get nodes -l 'node-role.kubernetes.io/worker' -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-    if [ -n "${node_ip}" ]; then
-        ocpopLogVerbose "CLUSTER MODE, Using Node IP:[${node_ip}]"
-        echo "${node_ip}"
+    # For any other CLUSTER mode, derive the IP from the cluster's API server URL.
+    # This is the most reliable endpoint, as it's the same one 'oc' uses to connect.
+    ocpopLogVerbose "Attempting to get cluster IP from current oc context..."
+    local api_server_url
+    api_server_url=$("${OC_CLIENT}" config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+
+    if [ -z "${api_server_url}" ]; then
+        rlLogError "Could not determine API server URL from oc config."
+        return 1
+    fi
+
+    # Parse the URL to extract just the hostname/IP
+    # 1. Remove protocol (http:// or https://)
+    # 2. Remove port (:6443)
+    # 3. Remove any trailing path
+    local cluster_host
+    cluster_host=$(echo "${api_server_url}" | sed -e 's#^https\?://##' -e 's#:[0-9]*$##' -e 's#/.*$##')
+
+    if [ -n "${cluster_host}" ]; then
+        ocpopLogVerbose "Using cluster host:[${cluster_host}] derived from API server URL."
+        echo "${cluster_host}"
         return 0
     else
-        rlLogError "Could not retrieve a worker node IP for CLUSTER mode."
+        rlLogError "Failed to parse a valid host from API server URL: ${api_server_url}"
         return 1
     fi
 }
