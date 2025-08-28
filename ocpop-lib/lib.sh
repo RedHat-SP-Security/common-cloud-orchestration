@@ -778,37 +778,32 @@ ocpopGetServiceIp() {
     local iterations=$3
     counter=0
     ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
-    if [ ${EXECUTION_MODE} == "CRC" ];
-    then
+
+    if [ "${EXECUTION_MODE}" == "CRC" ]; then
         local crc_service_ip
         crc_service_ip=$(crc ip)
         ocpopLogVerbose "CRC MODE, SERVICE IP/HOST:[${crc_service_ip}]"
         echo "${crc_service_ip}"
         return 0
-    elif [ ${EXECUTION_MODE} == "MINIKUBE" ];
-    then
+    elif [ "${EXECUTION_MODE}" == "MINIKUBE" ]; then
         local minikube_service_ip
         minikube_service_ip=$(minikube ip)
         ocpopLogVerbose "MINIKUBE MODE, SERVICE IP/HOST:[${minikube_service_ip}]"
         echo "${minikube_service_ip}"
         return 0
     fi
-    while [ ${counter} -lt ${iterations} ];
-    do
-        local service_ip
-        service_ip=$("${OC_CLIENT}" -n "${namespace}" describe service "${service_name}" | grep -i "LoadBalancer Ingress:" | awk -F ':' '{print $2}' | tr -d ' ')
-        ocpopLogVerbose "SERVICE IP/HOST:[${service_ip}](Namespace:[${namespace}])"
-        if [ -n "${service_ip}" ] && [ "${service_ip}" != "<pending>" ];
-        then
-            echo "${service_ip}"
-            return 0
-        else
-            ocpopLogVerbose "PENDING OR EMPTY IP/HOST:[${service_ip}], COUNTER[${counter}/${iterations}]"
-        fi
-        counter=$((counter+1))
-        sleep 1
-    done
-    return 1
+
+    # For CLUSTER mode, get a worker node IP. This is more reliable than waiting for ELB DNS.
+    local node_ip
+    node_ip=$("${OC_CLIENT}" get nodes -l 'node-role.kubernetes.io/worker' -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+    if [ -n "${node_ip}" ]; then
+        ocpopLogVerbose "CLUSTER MODE, Using Node IP:[${node_ip}]"
+        echo "${node_ip}"
+        return 0
+    else
+        rlLogError "Could not retrieve a worker node IP for CLUSTER mode."
+        return 1
+    fi
 }
 
 true <<'=cut'
@@ -896,14 +891,13 @@ ocpopGetServicePort() {
     local namespace=$2
     local service_port
     ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) PORT ..."
-    if [ ${EXECUTION_MODE} == "CLUSTER" ];
-    then
-        service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" | grep -v ^NAME | awk '{print $5}' | awk -F ':' '{print $1}')
-    else
-        service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" | grep -v ^NAME | awk '{print $5}' | awk -F ':' '{print $2}' | awk -F '/' '{print $1}')
-    fi
-    result=$?
-    ocpopLogVerbose "SERVICE PORT:[${service_port}](Namespace:[${namespace}])"
+
+    # This logic correctly extracts the NodePort (e.g., 32577 from 2222:32577/TCP)
+    # It should be used for all modes that rely on NodePort access.
+    service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" -o jsonpath='{.spec.ports[0].nodePort}')
+    
+    local result=$?
+    ocpopLogVerbose "SERVICE NODE PORT:[${service_port}](Namespace:[${namespace}])"
     echo "${service_port}"
     return ${result}
 }
