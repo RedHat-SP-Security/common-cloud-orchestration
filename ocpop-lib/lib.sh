@@ -1832,3 +1832,59 @@ ocpopPrintTokenFromConfiguration() {
     fi
     return 1
 }
+
+true <<'=cut'
+=pod
+
+=head2 ocpopGetSAtoken
+
+Obtains a service account token using the most appropriate method.
+
+    ocpopGetSAtoken SA_NAME NAMESPACE
+
+=over
+
+=item
+
+    SA_NAME - Name of the service account.
+
+=item
+
+    NAMESPACE - Namespace of the service account.
+
+=back
+
+Returns 0 if a token is found, 1 otherwise.
+
+=cut
+ocpopGetSAtoken() {
+    local sa_name=$1
+    local namespace=$2
+    local oc_cmd=("${OC_CLIENT[@]}")
+
+    # Use a projected token if available (best practice for in-cluster execution)
+    if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
+        local token
+        token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        echo "${token}"
+        return 0
+    else
+        # Fallback to 'oc create token' for external execution or older clusters
+        local token
+        token=$("${oc_cmd[@]}" create token "${sa_name}" -n "${namespace}" 2>/dev/null)
+        echo "${token}"
+        if [ -n "${token}" ]; then
+            return 0
+        fi
+    fi
+
+    # Final fallback for other token retrieval methods if needed
+    local token_from_config
+    token_from_config=$(ocpopPrintTokenFromConfiguration)
+    if [ -n "${token_from_config}" ]; then
+        echo "${token_from_config}"
+        return 0
+    fi
+
+    return 1
+}
