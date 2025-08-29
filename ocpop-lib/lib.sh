@@ -778,37 +778,42 @@ ocpopGetServiceIp() {
     local iterations=$3
     counter=0
     ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
-    if [ ${EXECUTION_MODE} == "CRC" ];
-    then
-        local crc_service_ip
-        crc_service_ip=$(crc ip)
-        ocpopLogVerbose "CRC MODE, SERVICE IP/HOST:[${crc_service_ip}]"
-        echo "${crc_service_ip}"
+
+    # Specific logic for well-defined local environments
+    if [ "${EXECUTION_MODE}" == "CRC" ]; then
+        echo "$(crc ip)"
         return 0
-    elif [ ${EXECUTION_MODE} == "MINIKUBE" ];
-    then
-        local minikube_service_ip
-        minikube_service_ip=$(minikube ip)
-        ocpopLogVerbose "MINIKUBE MODE, SERVICE IP/HOST:[${minikube_service_ip}]"
-        echo "${minikube_service_ip}"
+    elif [ "${EXECUTION_MODE}" == "MINIKUBE" ]; then
+        echo "$(minikube ip)"
         return 0
     fi
-    while [ ${counter} -lt ${iterations} ];
-    do
-        local service_ip
-        service_ip=$("${OC_CLIENT}" -n "${namespace}" describe service "${service_name}" | grep -i "LoadBalancer Ingress:" | awk -F ':' '{print $2}' | tr -d ' ')
-        ocpopLogVerbose "SERVICE IP/HOST:[${service_ip}](Namespace:[${namespace}])"
-        if [ -n "${service_ip}" ] && [ "${service_ip}" != "<pending>" ];
-        then
-            echo "${service_ip}"
-            return 0
-        else
-            ocpopLogVerbose "PENDING OR EMPTY IP/HOST:[${service_ip}], COUNTER[${counter}/${iterations}]"
-        fi
-        counter=$((counter+1))
-        sleep 1
-    done
-    return 1
+
+    # For any other CLUSTER mode, derive the IP from the cluster's API server URL.
+    # This is the most reliable endpoint, as it's the same one 'oc' uses to connect.
+    ocpopLogVerbose "Attempting to get cluster IP from current oc context..."
+    local api_server_url
+    api_server_url=$("${OC_CLIENT}" config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+
+    if [ -z "${api_server_url}" ]; then
+        rlLogError "Could not determine API server URL from oc config."
+        return 1
+    fi
+
+    # Parse the URL to extract just the hostname/IP
+    # 1. Remove protocol (http:// or https://)
+    # 2. Remove port (:6443)
+    # 3. Remove any trailing path
+    local cluster_host
+    cluster_host=$(echo "${api_server_url}" | sed -e 's#^https\?://##' -e 's#:[0-9]*$##' -e 's#/.*$##')
+
+    if [ -n "${cluster_host}" ]; then
+        ocpopLogVerbose "Using cluster host:[${cluster_host}] derived from API server URL."
+        echo "${cluster_host}"
+        return 0
+    else
+        rlLogError "Failed to parse a valid host from API server URL: ${api_server_url}"
+        return 1
+    fi
 }
 
 true <<'=cut'
@@ -896,14 +901,13 @@ ocpopGetServicePort() {
     local namespace=$2
     local service_port
     ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) PORT ..."
-    if [ ${EXECUTION_MODE} == "CLUSTER" ];
-    then
-        service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" | grep -v ^NAME | awk '{print $5}' | awk -F ':' '{print $1}')
-    else
-        service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" | grep -v ^NAME | awk '{print $5}' | awk -F ':' '{print $2}' | awk -F '/' '{print $1}')
-    fi
-    result=$?
-    ocpopLogVerbose "SERVICE PORT:[${service_port}](Namespace:[${namespace}])"
+
+    # This logic correctly extracts the NodePort (e.g., 32577 from 2222:32577/TCP)
+    # It should be used for all modes that rely on NodePort access.
+    service_port=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" -o jsonpath='{.spec.ports[0].nodePort}')
+    
+    local result=$?
+    ocpopLogVerbose "SERVICE NODE PORT:[${service_port}](Namespace:[${namespace}])"
     echo "${service_port}"
     return ${result}
 }
@@ -1826,5 +1830,61 @@ ocpopPrintTokenFromConfiguration() {
             return 0
         fi
     fi
+    return 1
+}
+
+true <<'=cut'
+=pod
+
+=head2 ocpopGetSAtoken
+
+Obtains a service account token using the most appropriate method.
+
+    ocpopGetSAtoken SA_NAME NAMESPACE
+
+=over
+
+=item
+
+    SA_NAME - Name of the service account.
+
+=item
+
+    NAMESPACE - Namespace of the service account.
+
+=back
+
+Returns 0 if a token is found, 1 otherwise.
+
+=cut
+ocpopGetSAtoken() {
+    local sa_name=$1
+    local namespace=$2
+    local oc_cmd=("${OC_CLIENT[@]}")
+
+    # Use a projected token if available (best practice for in-cluster execution)
+    if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
+        local token
+        token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        echo "${token}"
+        return 0
+    else
+        # Fallback to 'oc create token' for external execution or older clusters
+        local token
+        token=$("${oc_cmd[@]}" create token "${sa_name}" -n "${namespace}" 2>/dev/null)
+        echo "${token}"
+        if [ -n "${token}" ]; then
+            return 0
+        fi
+    fi
+
+    # Final fallback for other token retrieval methods if needed
+    local token_from_config
+    token_from_config=$(ocpopPrintTokenFromConfiguration)
+    if [ -n "${token_from_config}" ]; then
+        echo "${token_from_config}"
+        return 0
+    fi
+
     return 1
 }
