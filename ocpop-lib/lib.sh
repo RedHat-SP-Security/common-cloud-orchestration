@@ -776,39 +776,50 @@ ocpopGetServiceIp() {
     local service_name=$1
     local namespace=$2
     local iterations=$3
-    counter=0
-    ocpopLogVerbose "Getting SERVICE:[${service_name}](Namespace:[${namespace}]) IP/HOST ..."
-    if [ ${EXECUTION_MODE} == "CRC" ];
-    then
-        local crc_service_ip
-        crc_service_ip=$(crc ip)
-        ocpopLogVerbose "CRC MODE, SERVICE IP/HOST:[${crc_service_ip}]"
-        echo "${crc_service_ip}"
-        return 0
-    elif [ ${EXECUTION_MODE} == "MINIKUBE" ];
-    then
-        local minikube_service_ip
-        minikube_service_ip=$(minikube ip)
-        ocpopLogVerbose "MINIKUBE MODE, SERVICE IP/HOST:[${minikube_service_ip}]"
-        echo "${minikube_service_ip}"
-        return 0
+    local counter=0
+
+    # Handle CRC and MINIKUBE modes
+    if [ "${EXECUTION_MODE}" == "CRC" ] || [ "${EXECUTION_MODE}" == "MINIKUBE" ]; then
+        local service_ip=$("${OC_CLIENT}" -n "${namespace}" describe service "${service_name}" | grep -i "IP:" | awk '{print $2}')
+        if [ -n "${service_ip}" ]; then
+            ocpopLogVerbose "Using internal IP: ${service_ip}"
+            echo "${service_ip}"
+            return 0
+        fi
     fi
-    while [ ${counter} -lt ${iterations} ];
-    do
-        local service_ip
-        service_ip=$("${OC_CLIENT}" -n "${namespace}" describe service "${service_name}" | grep -i "LoadBalancer Ingress:" | awk -F ':' '{print $2}' | tr -d ' ')
-        ocpopLogVerbose "SERVICE IP/HOST:[${service_ip}](Namespace:[${namespace}])"
-        if [ -n "${service_ip}" ] && [ "${service_ip}" != "<pending>" ];
-        then
+
+    # For other environments, get the LoadBalancer ingress if available
+    while [ "${counter}" -lt "${iterations}" ]; do
+        local service_ip=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+        # Fallback to IP if hostname isn't available
+        if [ -z "${service_ip}" ]; then
+            service_ip=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        fi
+
+        if [ -n "${service_ip}" ] && [ "${service_ip}" != "<pending>" ]; then
+            ocpopLogVerbose "Found LoadBalancer IP/HOST: ${service_ip}"
             echo "${service_ip}"
             return 0
         else
-            ocpopLogVerbose "PENDING OR EMPTY IP/HOST:[${service_ip}], COUNTER[${counter}/${iterations}]"
+            ocpopLogVerbose "PENDING OR EMPTY IP/HOST: ${service_ip}, COUNTER[${counter}/${iterations}]"
         fi
+
         counter=$((counter+1))
         sleep 1
     done
-    return 1
+
+    # If all else fails, use the internal ClusterIP
+    local cluster_ip=$("${OC_CLIENT}" -n "${namespace}" get service "${service_name}" -o jsonpath='{.spec.clusterIP}')
+    if [ -n "${cluster_ip}" ] && [ "${cluster_ip}" != "None" ]; then
+        ocpopLogVerbose "Falling back to ClusterIP: ${cluster_ip}"
+        echo "${cluster_ip}"
+        return 0
+    fi
+
+    # Last resort: use the service name as a DNS-resolvable host inside the cluster
+    ocpopLogVerbose "Falling back to service name as internal host: ${service_name}.${namespace}.svc.cluster.local"
+    echo "${service_name}.${namespace}.svc.cluster.local"
+    return 0
 }
 
 true <<'=cut'
