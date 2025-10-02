@@ -53,7 +53,7 @@ rlJournalStart
             rlRun "echo 'OLM as already installed.'"
           else
             rlRun "echo 'Instaling OLM'"
-            rlRun "operator-sdk --timeout ${OLM_INSTALL_TIMEOUT} olm install"
+            rlRun "operator-sdk --verbose --timeout ${OLM_INSTALL_TIMEOUT} olm install"
           fi
           #not use function script due possible usage of this setup for other components
           rlRun "minikube status"

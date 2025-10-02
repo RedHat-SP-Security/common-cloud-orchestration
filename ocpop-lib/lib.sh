@@ -1575,7 +1575,7 @@ ocpopBundleStart() {
     then
       rlRun "operator-sdk --verbose run bundle --timeout ${TO_BUNDLE} ${BUNDLE_IMAGE_USED} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE}"
     else
-      rlRun "operator-sdk run bundle --timeout ${TO_BUNDLE} ${BUNDLE_IMAGE_USED} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null"
+      rlRun "operator-sdk --verbose run bundle --timeout ${TO_BUNDLE} ${BUNDLE_IMAGE_USED} ${RUN_BUNDLE_PARAMS} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null"
     fi
     return $?
 }
@@ -1701,7 +1701,7 @@ ocpopBundleInitialStop() {
     then
         operator-sdk --verbose cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE}
     else
-        operator-sdk cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null
+        operator-sdk --verbose cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null
     fi
     if [ $? -eq 0 ];
     then
@@ -1741,9 +1741,9 @@ ocpopBundleStop() {
     fi
     if [ "${V}" == "1" ] || [ "${VERBOSE}" == "1" ];
     then
-        operator-sdk cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE}
+        operator-sdk --verbose cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE}
     else
-        operator-sdk cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null
+        operator-sdk --verbose cleanup ${OPERATOR_NAME} --namespace ${OPERATOR_NAMESPACE} 2>/dev/null
     fi
     if [ $? -eq 0 ];
     then
