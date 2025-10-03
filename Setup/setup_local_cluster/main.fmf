@@ -7,6 +7,6 @@ require:
   - libvirt-daemon
   - podman
   - curl
-duration: 10m
+duration: 15m
 enabled: true
 id: 5227fefe-474e-4f82-b61e-bb5d50190a03
