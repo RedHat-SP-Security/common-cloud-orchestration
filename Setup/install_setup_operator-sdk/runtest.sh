@@ -35,7 +35,7 @@ rlJournalStart
         #install operator sdk
         ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n "$(uname -m)" ;; esac)
         OS=$(uname | awk '{print tolower($0)}')
-        rlRun "wget -q https://github.com/operator-framework/operator-sdk/releases/latest/download/operator-sdk_${OS}_${ARCH}" || rlDie "Failed to download operator-sdk"
+        rlRun "wget -q -O operator-sdk_${OS}_${ARCH} https://github.com/operator-framework/operator-sdk/releases/latest/download/operator-sdk_${OS}_${ARCH}" || rlDie "Failed to download operator-sdk"
         rlRun "chmod +x operator-sdk_${OS}_${ARCH} && mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk"
         rlRun "operator-sdk version" 0 "Checking if operator-sdk is installed."
     rlPhaseEnd

@@ -33,7 +33,7 @@ rlJournalStart
           OS=$(uname | awk '{print tolower($0)}')
           #download latest operator
 
-          rlRun "wget -q https://github.com/operator-framework/operator-sdk/releases/latest/download/operator-sdk_${OS}_${ARCH}" || rlDie "Failed to download operator-sdk"
+          rlRun "wget -q -O operator-sdk_${OS}_${ARCH} https://github.com/operator-framework/operator-sdk/releases/latest/download/operator-sdk_${OS}_${ARCH}" || rlDie "Failed to download operator-sdk"
           rlRun "chmod +x operator-sdk_${OS}_${ARCH} && mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk"
 
           #setup of libvirt
