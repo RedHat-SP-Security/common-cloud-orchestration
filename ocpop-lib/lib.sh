@@ -810,6 +810,11 @@ ocpopGetServiceIp() {
                 # Resolve hostname to IP (first A record)
                 service_ip=$(getent ahostsv4 "${raw_ingress}" | awk '{print $1; exit}')
                 ocpopLogVerbose "Resolved HOSTNAME:[${raw_ingress}] to IP:[${service_ip}]"
+                # If resolution fails, use hostname directly (curl can resolve it)
+                if [ -z "${service_ip}" ]; then
+                    service_ip="${raw_ingress}"
+                    ocpopLogVerbose "Using HOSTNAME directly:[${service_ip}]"
+                fi
             fi
         fi
 
