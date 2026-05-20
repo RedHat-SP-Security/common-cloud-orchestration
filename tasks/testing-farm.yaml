@@ -83,6 +83,7 @@ spec:
           --hardware disk.size=">= 80 GB" \
           --hardware cpu.processors=">= 4" \
           --environment INDEX_OCP_VER="'$(echo ${INDEX_OCP_VER})'" \
+          --skip-summary \
           --context distro="'${DISTRO}'"'
         # Print the constructed command for debugging purposes
         echo "Executing command: $REQUEST_CMD "
