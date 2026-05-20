@@ -199,6 +199,7 @@ spec:
                 --compose "'${COMPOSE}'" \
                 --arch "'${ARCH}'" \
                 --timeout "'${TIMEOUT}'" \
+                --skip-summary \
                 --context distro="'${DISTRO}'"'
               # Print the constructed command for debugging purposes
               echo "Executing command: $REQUEST_CMD "
