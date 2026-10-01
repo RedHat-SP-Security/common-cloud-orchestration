@@ -36,8 +36,8 @@ rlJournalStart
         | grep -v '^4\.9\.' \
         | sort -V)
             
-        # Normalize to X.Y.Z and keep only unique
-        CRC_VERSIONS_OUT=$(echo "$CRC_VERSIONS_OUT" | awk -F. '{print $1"."$2"."$3}' | sort -u -t. -k1,2)
+        # Keep only the highest patch version per major.minor
+        CRC_VERSIONS_OUT=$(echo "$CRC_VERSIONS_OUT" | awk -F. '{key=$1"."$2; ver[key]=$0} END{for(k in ver) print ver[k]}' | sort -V)
         
         # Take last 4, sort descending, and read directly into array
         mapfile -t ARRAY_OCP_VERSIONS < <(echo "$CRC_VERSIONS_OUT" | tail -n 4 | sort -rV)
