@@ -27,17 +27,16 @@ rlJournalStart
         # - grep -oP '(?<=<span class="name">)[^<]+': Extract the text within the <span class="name"> tags
         # - grep -v '^4\.9\.': Exclude versions starting with '4.9.'
         # - sort -V: Sort the versions in natural order
-        # - awk -F. '{print $1"."$2"."$3}': Extract the major.minor.patch version
-        # - sort -u -t. -k1,2: Get unique major.minor versions with the highest patch version
-        # - for loop: Iterate over each unique version and echo it
+        # - awk groups by major.minor, keeping the last (highest) patch from the version-sorted input
+        # - final sort -V orders the deduplicated versions ascending
         #workaround to not grep 4.9 versions
         CRC_VERSIONS_OUT=$(curl -s https://mirror.openshift.com/pub/openshift-v4/clients/crc/bundles/openshift/ \
         | grep -oP '(?<=<span class="name">)[^<]+' \
         | grep -v '^4\.9\.' \
         | sort -V)
             
-        # Normalize to X.Y.Z and keep only unique
-        CRC_VERSIONS_OUT=$(echo "$CRC_VERSIONS_OUT" | awk -F. '{print $1"."$2"."$3}' | sort -u -t. -k1,2)
+        # Keep only the highest patch version per major.minor
+        CRC_VERSIONS_OUT=$(echo "$CRC_VERSIONS_OUT" | awk -F. '{key=$1"."$2; ver[key]=$0} END{for(k in ver) print ver[k]}' | sort -V)
         
         # Take last 4, sort descending, and read directly into array
         mapfile -t ARRAY_OCP_VERSIONS < <(echo "$CRC_VERSIONS_OUT" | tail -n 4 | sort -rV)
